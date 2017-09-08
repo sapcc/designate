@@ -86,6 +86,9 @@ class SerializationMiddleware(DNSMiddleware):
             message = dns.message.from_wire(request['payload'],
                                             self.tsig_keyring)
 
+            # Fix to set the correct message id in the TSIG RR
+            message.original_id = message.id
+
             if message.had_tsig:
                 LOG.debug('Request signed with TSIG key: %s', message.keyname)
 
