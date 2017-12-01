@@ -2667,9 +2667,20 @@ class Service(service.RPCService, service.Service):
                     check_origin=False)
                 zone = dnsutils.from_dnspython_zone(dnspython_zone)
                 zone.type = 'PRIMARY'
-                # If pool id was specified in headers:
+                
+                # Set pool id attribute if it was specified as request header:
                 if pool_id:
-                    zone.pool_id = pool_id
+		    attr=objects.ZoneAttributeList.from_list(
+			[
+			    {
+				"key": "pool_id",
+				"value": pool_id
+			    }
+			]
+		    )
+                    # We can set attributes freely as there are no attributes
+                    # in zone import request body since it is text/dns
+                    zone.__setattr__('attributes', attr)
 
                 for rrset in list(zone.recordsets):
                     if rrset.type in ('NS', 'SOA'):
