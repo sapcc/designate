@@ -88,7 +88,7 @@ class ZoneImportController(rest.RestController):
             raise exceptions.UnsupportedContentType(
                 'Content-type must be text/dns')
 
-        # Use 'pool_id' if it was specified in the headers
+        # Use given 'pool_id' if it was specified in the headers
         pool_id = ''
         pool_id = request.headers.get('X-Designate-Pool-ID')
 
