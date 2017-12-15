@@ -2635,7 +2635,7 @@ class Service(service.RPCService, service.Service):
 
     # Zone Import Methods
     @notification('dns.zone_import.create')
-    def create_zone_import(self, context, request_body):
+    def create_zone_import(self, context, request_body, pool_id=''):
         target = {'tenant_id': context.tenant}
         policy.check('create_zone_import', context, target)
 
@@ -2652,13 +2652,13 @@ class Service(service.RPCService, service.Service):
                                                             zone_import)
 
         self.tg.add_thread(self._import_zone, context, created_zone_import,
-                    request_body)
+                    request_body, pool_id=pool_id)
 
         return created_zone_import
 
-    def _import_zone(self, context, zone_import, request_body):
+    def _import_zone(self, context, zone_import, request_body, pool_id=''):
 
-        def _import(self, context, zone_import, request_body):
+        def _import(self, context, zone_import, request_body, pool_id=''):
             # Dnspython needs a str instead of a unicode object
             if six.PY2:
                 request_body = str(request_body)
@@ -2673,6 +2673,16 @@ class Service(service.RPCService, service.Service):
                     check_origin=False)
                 zone = dnsutils.from_dnspython_zone(dnspython_zone)
                 zone.type = 'PRIMARY'
+
+                # Set pool id attribute if it was specified as request header:
+                if pool_id:
+                    attr = objects.ZoneAttributeList.from_list([
+                        {"key": "pool_id",
+                         "value": pool_id}])
+
+                    # We can set attributes freely as there are no attributes
+                    # in zone import request body since it is text/dns
+                    zone.__setattr__('attributes', attr)
 
                 for rrset in list(zone.recordsets):
                     if rrset.type == 'SOA':
@@ -2703,7 +2713,7 @@ class Service(service.RPCService, service.Service):
 
         # Execute the import in a real Python thread
         zone, zone_import = tpool.execute(_import, self, context,
-            zone_import, request_body)
+            zone_import, request_body, pool_id=pool_id)
 
         # If the zone import was valid, create the zone
         if zone_import.status != 'ERROR':
