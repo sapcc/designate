@@ -224,6 +224,13 @@ class TestCase(base.BaseTestCase):
          'description': u'Pool-Two description',
          'attributes': [{'key': 'scope', 'value': 'public'}],
          'ns_records': [{'priority': 1, 'hostname': 'ns1.example.org.'}]},
+
+        {'name': 'Pool-Three',
+         'description': u'Pool-Three description',
+         'attributes': [{'key': 'scope', 'value': 'public'},
+                        {'key': 'pool_id',
+                         'value': '3ca13c45-6505-4965-b8b9-198522168d13'}],
+         'ns_records': [{'priority': 1, 'hostname': 'ns1.example.org.'}]},
     ]
 
     pool_attribute_fixtures = [
