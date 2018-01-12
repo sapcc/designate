@@ -558,12 +558,23 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
                                            recordset['id'])
         self.client.put_json(url, body, status=202)
 
-    def test_create_txt_record_too_long(self):
-        # See bug #1474012
+    def test_create_long_txt_record(self):
+        # See bug #1595265
         new_zone = self.create_zone(name='example.net.')
         recordset = self.create_recordset(new_zone, 'TXT')
         self.create_record(new_zone, recordset)
-        body = {'description': 'Tester', 'records': ['a' * 512]}
+        body = {'description': 'Tester', 'records': ['a' * 1024]}
+
+        url = '/zones/%s/recordsets/%s' % (recordset['zone_id'],
+                                           recordset['id'])
+        self.client.put_json(url, body, status=202)
+
+    def test_create_txt_record_too_long(self):
+        # See bug #1474012 and #1595265
+        new_zone = self.create_zone(name='example.net.')
+        recordset = self.create_recordset(new_zone, 'TXT')
+        self.create_record(new_zone, recordset)
+        body = {'description': 'Tester', 'records': ['a' * 65536]}
         url = '/zones/%s/recordsets/%s' % (recordset['zone_id'],
                                            recordset['id'])
         self._assert_exception('invalid_object', 400,
