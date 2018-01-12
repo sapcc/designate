@@ -26,7 +26,7 @@ class TXT(Record):
             'schema': {
                 'type': 'string',
                 'format': 'txt-data',
-                'maxLength': 255,
+                'maxLength': 65535,
             },
             'required': True
         }
