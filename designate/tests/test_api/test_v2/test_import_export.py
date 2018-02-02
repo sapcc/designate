@@ -133,7 +133,6 @@ class APIV2ZoneImportExportTest(ApiV2TestCase):
         # Delete NS records, since they won't be the same
         imported.delete_rdataset(imported.origin, 'NS')
         exported.delete_rdataset(exported.origin, 'NS')
-        imported.delete_rdataset('delegation', 'NS')
         self.assertEqual(imported, exported)
 
     def test_import_with_pool_id(self):
