@@ -2677,8 +2677,12 @@ class Service(service.RPCService, service.Service):
                     zone.__setattr__('attributes', attr)
 
                 for rrset in list(zone.recordsets):
-                    if rrset.type in ('NS', 'SOA'):
+                    if rrset.type == 'SOA':
                         zone.recordsets.remove(rrset)
+                    # the base ns record will be replaced 
+                    if rrset.type == 'NS' and rrset.name == zone.name:
+                        zone.recordsets.remove(rrset)
+
 
             except dnszone.UnknownOrigin:
                 zone_import.message = ('The $ORIGIN statement is required and'
