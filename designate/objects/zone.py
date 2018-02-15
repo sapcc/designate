@@ -67,7 +67,7 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
                 'minimum': 0,
                 'maximum': 2147483647
             },
-            'read_only': True
+            'read_only': False
         },
         'retry': {
             'schema': {
@@ -75,7 +75,7 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
                 'minimum': 0,
                 'maximum': 2147483647
             },
-            'read_only': True
+            'read_only': False
         },
         'expire': {
             'schema': {
@@ -83,7 +83,7 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
                 'minimum': 0,
                 'maximum': 2147483647
             },
-            'read_only': True
+            'read_only': False
         },
         'minimum': {
             'schema': {
@@ -91,7 +91,7 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
                 'minimum': 0,
                 'maximum': 2147483647
             },
-            'read_only': True
+            'read_only': False
         },
         'parent_zone_id': {
             'schema': {
