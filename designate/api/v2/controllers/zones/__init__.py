@@ -173,6 +173,7 @@ class ZonesController(rest.RestController):
                 raise exceptions.InvalidObject(msg)
 
             increment_serial = zone.type == 'PRIMARY'
+
             zone = self.central_api.update_zone(
                 context, zone, increment_serial=increment_serial)
 
