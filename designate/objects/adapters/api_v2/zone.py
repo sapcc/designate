@@ -51,7 +51,9 @@ class ZoneAPIv2Adapter(base.APIv2Adapter):
             "ttl": {
                 'read_only': False
             },
-            "serial": {},
+            "serial": {
+                'read_only': False
+            },
             "status": {},
             "action": {},
             "version": {},

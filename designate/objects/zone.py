@@ -94,6 +94,22 @@ class Zone(base.DesignateObject, base.DictObjectMixin,
         errors = ValidationErrorList()
 
         if self.type == 'PRIMARY':
+            if 'serial' in self.obj_what_changed():
+                if self.obj_get_original_value('serial') > self.serial:
+                    e = ValidationError()
+                    e.path = ['type']
+                    e.validator = 'minimum'
+                    e.validator_value = ['serial']
+                    e.message = (
+                        "serial %d is less than previously set serial of %d" %
+                        (
+                            self.serial,
+                            self.obj_get_original_value('serial')
+                        )
+                    )
+                    errors.append(e)
+                else:
+                    self.serial-=1  # increment zone has to be called later
             if self.obj_attr_is_set('masters') and len(self.masters) != 0:
                 e = ValidationError()
                 e.path = ['type']
@@ -120,7 +136,7 @@ class Zone(base.DesignateObject, base.DictObjectMixin,
                     e.message = "'masters' is a required property"
                     errors.append(e)
 
-                for i in ['email', 'ttl']:
+                for i in ['email', 'ttl', 'serial']:
                     if i in self.obj_what_changed():
                         e = ValidationError()
                         e.path = ['type']
