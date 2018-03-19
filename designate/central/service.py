@@ -1306,6 +1306,14 @@ class Service(service.RPCService, service.Service):
                 record.action = 'CREATE'
                 record.status = 'PENDING'
                 record.serial = zone.serial
+                # Check for RFC1035 conformance. Records with empty spaces
+                # must be wrapped in double quotes (sec. 5.1 Format).
+                if recordset.type in ('TXT', 'SPF') and (" " in record.data):
+                    if (not record.data.startswith('"')
+                        and not record.data.endswith('"')):
+                            err_msg = ('Empty spaces are not allowed in record'
+                                       ', unless wrapped in double quotes.')
+                            raise exceptions.BadRequest(err_msg)
 
         recordset = self.storage.create_recordset(context, zone.id,
                                                   recordset)

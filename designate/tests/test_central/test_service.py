@@ -1426,6 +1426,76 @@ class CentralServiceTest(CentralTestCase):
         self.assertIsNotNone(recordset.records[1].id)
         self.assertThat(new_serial, GreaterThan(original_serial))
 
+        # Create the Object
+        recordset = objects.RecordSet(
+            name='testspf.%s' % zone.name,
+            type='SPF',
+            records=objects.RecordList(objects=[
+                objects.Record(data='"v=spf1 a mx a:mail.open.tech. -all"')
+            ])
+        )
+
+        # Persist the Object
+        recordset = self.central_service.create_recordset(
+            self.admin_context, zone.id, recordset=recordset)
+
+        self.assertIsNotNone(recordset.records)
+        self.assertEqual(1, len(recordset.records))
+        self.assertIsNotNone(recordset.records[0].id)
+
+        # Create the Object
+        recordset = objects.RecordSet(
+            name='testtxt.%s' % zone.name,
+            type='TXT',
+            records=objects.RecordList(objects=[
+                objects.Record(data='regulartxtrecord')
+            ])
+        )
+
+        # Persist the Object
+        recordset = self.central_service.create_recordset(
+            self.admin_context, zone.id, recordset=recordset)
+
+        self.assertIsNotNone(recordset.records)
+        self.assertEqual(1, len(recordset.records))
+        self.assertIsNotNone(recordset.records[0].id)
+
+    def test_create_recordset_with_invalid_records(self):
+        zone = self.create_zone()
+        original_serial = zone.serial
+
+        # Create the Object: TXT
+        recordset = objects.RecordSet(
+            name='testtxtrecord.%s' % zone.name,
+            type='TXT',
+            records=objects.RecordList(objects=[
+                objects.Record(data='test empty space records ')
+            ])
+        )
+
+        # RFC1035 5.1 Format
+        # Strings with empty spaces should have " " around
+        self.assertRaises(
+            exceptions.BadRequest,
+            self.central_service.create_recordset,
+            self.admin_context, zone.id, recordset=recordset)
+
+        # Create the Object: SPF
+        recordset = objects.RecordSet(
+            name='testspfrecord.%s' % zone.name,
+            type='SPF',
+            records=objects.RecordList(objects=[
+                objects.Record(data='test empty space records ')
+            ])
+        )
+
+        # RFC1035 5.1 Format
+        # Strings with empty spaces should have " " around
+        self.assertRaises(
+            exceptions.BadRequest,
+            self.central_service.create_recordset,
+            self.admin_context, zone.id, recordset=recordset)
+
     def test_create_recordset_over_quota(self):
         # SOA, NS recordsets exist by default.
         self.config(quota_zone_recordsets=3)
