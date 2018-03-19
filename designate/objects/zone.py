@@ -12,11 +12,15 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+from oslo_config import cfg
+
 from designate import utils
 from designate import exceptions
 from designate.objects import base
 from designate.objects.validation_error import ValidationError
 from designate.objects.validation_error import ValidationErrorList
+
+cfg.CONF.import_opt('description_field_mandatory', 'designate.api', group='service:api')
 
 
 class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
@@ -225,6 +229,14 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
                 e.validator_value = 'email'
                 e.message = "'email' is a required property"
                 errors.append(e)
+            if cfg.CONF['service:api'].description_field_mandatory:
+                if self.description is None:
+                    e = ValidationError()
+                    e.path = ['type']
+                    e.validator = 'required'
+                    e.validator_value = 'description'
+                    e.message = "'description' is a required property"
+                    errors.append(e)
             self._raise(errors)
 
         try:
@@ -246,6 +258,15 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
                         e.message = "'%s' can't be specified when type is " \
                             "SECONDARY" % i
                         errors.append(e)
+
+                if cfg.CONF['service:api'].description_field_mandatory:
+                    if self.description is None:
+                        e = ValidationError()
+                        e.path = ['type']
+                        e.validator = 'required'
+                        e.validator_value = 'description'
+                        e.message = "'description' is a required property"
+
                 self._raise(errors)
 
             super(Zone, self).validate()
