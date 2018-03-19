@@ -97,6 +97,9 @@ debug = False
 # Enable host request headers
 #enable_host_header = False
 
+# Make Zone description field mandatory
+#description_field_mandatory = False
+
 # The base uri used in responses
 #api_base_uri = 'http://127.0.0.1:9001/'
 
