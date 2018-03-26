@@ -374,6 +374,22 @@ class Service(service.RPCService, service.Service):
                     child_zone['name']
                 raise exceptions.InvalidRecordSetLocation(msg)
 
+    def _has_empty_spaces(self, recordset):
+        """
+        Check to make sure that the records in the recordset do not have
+        empty spaces (tabs, newlines, etc.) unless wrapped in double quotes.
+        """
+        for record in recordset.records:
+            # Check for RFC1035 conformance. Records with empty spaces
+            # must be wrapped in double quotes (RFC sec. 5.1 Format).
+            if (not record.data.startswith('"')
+                and not record.data.endswith('"')):
+                for element in record.data:
+                    if element.isspace():
+                        err_msg = ('Empty spaces are not allowed in record, '
+                                   'unless wrapped in double quotes.')
+			raise exceptions.BadRequest(err_msg)
+
     def _is_valid_recordset_records(self, recordset):
         """
         Check to make sure that the records in the recordset
@@ -388,6 +404,8 @@ class Service(service.RPCService, service.Service):
                 raise exceptions.BadRequest(
                     'CNAME recordsets may not have more than 1 record'
                 )
+            if recordset.type in ('TXT', 'SPF'):
+                self._has_empty_spaces(recordset)
 
     def _is_blacklisted_zone_name(self, context, zone_name):
         """
@@ -1306,14 +1324,6 @@ class Service(service.RPCService, service.Service):
                 record.action = 'CREATE'
                 record.status = 'PENDING'
                 record.serial = zone.serial
-                # Check for RFC1035 conformance. Records with empty spaces
-                # must be wrapped in double quotes (sec. 5.1 Format).
-                if recordset.type in ('TXT', 'SPF') and (" " in record.data):
-                    if (not record.data.startswith('"')
-                        and not record.data.endswith('"')):
-                            err_msg = ('Empty spaces are not allowed in record'
-                                       ', unless wrapped in double quotes.')
-                            raise exceptions.BadRequest(err_msg)
 
         recordset = self.storage.create_recordset(context, zone.id,
                                                   recordset)
