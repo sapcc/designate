@@ -2908,8 +2908,9 @@ class Service(service.RPCService, service.Service):
             "hostname": service_status.hostname
         }
 
-        if service_status.obj_attr_is_set('id'):
-            criterion["id"] = service_status.id
+        # Try to make it update existing status instead of creating new
+        #if service_status.obj_attr_is_set('id'):
+        #    criterion["id"] = service_status.id
 
         try:
             db_status = self.storage.find_service_status(
