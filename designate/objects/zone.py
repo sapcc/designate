@@ -106,12 +106,14 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
                 'minimum': 1,
                 'maximum': 4294967295,
             },
+            'read_only': False
         },
         'description': {
             'schema': {
                 'type': ['string', 'null'],
                 'maxLength': 160
             },
+            'required': False
         },
         'status': {
             'schema': {
@@ -162,6 +164,11 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
             'read_only': True
         },
         'delayed_notify': {
+            'schema': {
+                'type': 'boolean',
+            },
+        },
+        'require_description': {
             'schema': {
                 'type': 'boolean',
             },
@@ -225,6 +232,15 @@ class Zone(base.DictObjectMixin, base.SoftDeleteObjectMixin,
                 e.validator_value = 'email'
                 e.message = "'email' is a required property"
                 errors.append(e)
+            # Do validation if description is required
+            if self.require_description:
+                if self.description is None or len(self.description) == 0:
+                    e = ValidationError()
+                    e.path = ['type']
+                    e.validator = 'required'
+                    e.validator_value = 'description'
+                    e.message = "'description' is a required property"
+                    errors.append(e)
             self._raise(errors)
 
         try:

@@ -407,6 +407,17 @@ class Service(service.RPCService, service.Service):
             if recordset.type in ('TXT', 'SPF'):
                 self._has_empty_spaces(recordset)
 
+    def _is_valid_recordset_description(self, recordset, zone):
+        """
+        Checks if for this particular zone the description field is a
+        requirement for all records located in this zone.
+        """
+        if zone.require_description:
+            if not recordset.obj_attr_is_set('description'):
+                # raise error
+                msg = 'Description field is required for this Record Set'
+                raise exceptions.InvalidRecordSetDescription(msg)
+
     def _is_blacklisted_zone_name(self, context, zone_name):
         """
         Ensures the provided zone_name is not blacklisted.
@@ -1299,6 +1310,9 @@ class Service(service.RPCService, service.Service):
 
         # Validate the records
         self._is_valid_recordset_records(recordset)
+
+        # Validate if description is a hard requirement
+        self._is_valid_recordset_description(recordset, zone)
 
     @transaction
     def _create_recordset_in_storage(self, context, zone, recordset,
