@@ -27,8 +27,6 @@ api_opts = [
                help='Number of api greenthreads to spawn'),
     cfg.BoolOpt('enable-host-header', default=False,
                help='Enable host request headers'),
-    cfg.BoolOpt('description-field-mandatory', default=False,
-               help='Make Zone description fields mandatory'),
     cfg.StrOpt('api-base-uri', default='http://127.0.0.1:9001/',
                help='the url used as the base for all API responses,'
                     'This should consist of the scheme (http/https),'
