@@ -862,8 +862,6 @@ class Service(service.RPCService):
             'zone_name': zone.name
         }
 
-        policy.check('create_zone', context, target)
-
         # Ensure the tenant has enough quota to continue
         self._enforce_zone_quota(context, zone.tenant_id)
 
@@ -883,10 +881,15 @@ class Service(service.RPCService):
             if parent_zone.tenant_id == zone.tenant_id:
                 # Record the Parent Zone ID
                 zone.parent_zone_id = parent_zone.id
+                # Do subzone policy check instead of regular create_zone
+                policy.check('create_sub_zone', context, target)
             else:
                 raise exceptions.IllegalChildZone('Unable to create'
                                                   'subzone in another '
                                                   'tenants zone')
+        else:
+            # If not subzone, regular policy check applies
+            policy.check('create_zone', context, target)
 
         # Handle super-zones appropriately
         subzones = self._is_superzone(context, zone.name, zone.pool_id)
