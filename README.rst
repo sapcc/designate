@@ -1,3 +1,6 @@
+.. image:: https://travis-ci.org/sapcc/designate.svg?branch=stable%2Fpike-m3
+    :target: https://travis-ci.org/sapcc/designate
+
 ========================
 Team and repository tags
 ========================
