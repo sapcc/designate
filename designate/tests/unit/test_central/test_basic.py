@@ -1292,7 +1292,8 @@ class CentralZoneTestCase(CentralBasic):
             self.service._update_recordset_in_storage.called)
 
         n, ctx, target = designate.central.service.policy.check.call_args[0]
-        self.assertEqual('update_recordset', n)
+        self.assertEqual('update_%s_recordset'
+                         % recordset.obj_get_original_value('type'), n)
         self.assertEqual({
             'zone_id': '9c85d9b0-1e9d-4e99-aede-a06664f1af2e',
             'zone_name': 'example.org.',
@@ -1442,6 +1443,7 @@ class CentralZoneTestCase(CentralBasic):
             zone_id=CentralZoneTestCase.zone__id_2,
             id=CentralZoneTestCase.recordset__id,
             managed=True,
+            type='A',
         )
         self.context = mock.Mock()
         self.context.edit_managed_records = False
