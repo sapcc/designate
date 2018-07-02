@@ -1249,7 +1249,7 @@ class Service(service.RPCService, service.Service):
             'tenant_id': zone.tenant_id,
         }
 
-        policy.check('create_recordset', context, target)
+        policy.check('create_%s_recordset' % recordset.type, context, target)
 
         recordset, zone = self._create_recordset_in_storage(
             context, zone, recordset, increment_serial=increment_serial)
@@ -1408,7 +1408,8 @@ class Service(service.RPCService, service.Service):
             'tenant_id': zone.tenant_id
         }
 
-        policy.check('update_recordset', context, target)
+        recordset_type = recordset.obj_get_original_value('type')
+        policy.check('update_%s_recordset' % recordset_type, context, target)
 
         if recordset.managed and not context.edit_managed_records:
             raise exceptions.BadRequest('Managed records may not be updated')
@@ -1471,7 +1472,7 @@ class Service(service.RPCService, service.Service):
             'tenant_id': zone.tenant_id
         }
 
-        policy.check('delete_recordset', context, target)
+        policy.check('delete_%s_recordset' % recordset.type, context, target)
 
         if recordset.managed and not context.edit_managed_records:
             raise exceptions.BadRequest('Managed records may not be deleted')
