@@ -1026,13 +1026,28 @@ class Service(service.RPCService, service.Service):
 
         :returns: updated zone
         """
+        zone_name = zone.obj_get_original_value('name')
+        pool_id = zone.obj_get_original_value('pool_id')
+        tenant_id = zone.obj_get_original_value('tenant_id')
+
         target = {
             'zone_id': zone.obj_get_original_value('id'),
-            'zone_name': zone.obj_get_original_value('name'),
-            'tenant_id': zone.obj_get_original_value('tenant_id'),
+            'zone_name': zone_name,
+            'tenant_id': tenant_id,
         }
 
-        policy.check('update_zone', context, target)
+        # Handle sub-zones appropriately
+        parent_zone = self._is_subzone(context, zone_name, pool_id)
+        if parent_zone:
+            if parent_zone.tenant_id == tenant_id:
+                policy.check('update_sub_zone', context, target)
+            else:
+                raise exceptions.IllegalChildZone('Unable to update '
+                                                  'subzone in another '
+                                                  'tenants zone')
+        else:
+            # If not subzone, regular policy check applies
+            policy.check('update_zone', context, target)
 
         changes = zone.obj_get_changes()
 
@@ -1104,7 +1119,19 @@ class Service(service.RPCService, service.Service):
         if hasattr(context, 'abandon') and context.abandon:
             policy.check('abandon_zone', context, target)
         else:
-            policy.check('delete_zone', context, target)
+            # Handle sub-zones appropriately with own policy check
+            parent_zone = self._is_subzone(
+                context, zone.name, zone.pool_id)
+            if parent_zone:
+                if parent_zone.tenant_id == zone.tenant_id:
+                    policy.check('delete_sub_zone', context, target)
+                else:
+                    raise exceptions.IllegalChildZone('Unable to delete'
+                                                      'subzone in another '
+                                                      'tenants zone')
+            else:
+                # If not subzone, regular policy check applies
+                policy.check('delete_zone', context, target)
 
         # Prevent deletion of a zone which has child zones
         criterion = {'parent_zone_id': zone_id}
