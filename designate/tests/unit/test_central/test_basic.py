@@ -923,7 +923,6 @@ class CentralZoneTestCase(CentralBasic):
         self.service.storage.get_zone.return_value = RoObject(
             name='foo',
             tenant_id='2',
-            pool_id='1'
         )
         self.service.storage.count_zones.return_value = 2
         with testtools.ExpectedException(exceptions.ZoneHasSubZone):
@@ -960,7 +959,6 @@ class CentralZoneTestCase(CentralBasic):
         self.service.storage.get_zone.return_value = RoObject(
             name='foo',
             tenant_id='2',
-            pool_id='1'
         )
         self.service._delete_zone_in_storage = Mock(
             return_value=RoObject(
