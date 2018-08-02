@@ -34,6 +34,12 @@ from designate.worker import processing
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
 
+class AlsoNotifyTask(object):
+    """
+    Placeholder to define options for also_notify targets
+    """
+    pass
+
 
 class Service(service.RPCService, service.Service):
     RPC_API_VERSION = '1.0'
@@ -129,7 +135,7 @@ class Service(service.RPCService, service.Service):
 
         # Send a NOTIFY to each also-notifies
         for also_notify in pool.also_notifies:
-            notify_target = also_notify.__class__
+            notify_target = AlsoNotifyTask()
             notify_target.options = {'host': also_notify.host,
                                      'port': also_notify.port}
             all_tasks.append(zonetasks.SendNotify(self.executor,
