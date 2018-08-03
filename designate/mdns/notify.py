@@ -30,8 +30,12 @@ from oslo_log import log as logging
 
 from designate.i18n import _LI
 from designate.i18n import _LW
+from designate.i18n import _LE
+from designate import exceptions
 from designate.mdns import base
 from designate.metrics import metrics
+from designate.central import rpcapi as central_api
+from designate.context import DesignateContext
 
 dns_query = eventlet.import_patched('dns.query')
 
@@ -274,6 +278,36 @@ class NotifyEndpoint(base.BaseEndpoint):
                     'zone': zone.name, 'server': host,
                     'port': port, 'resp': str(response)})
             response = None
+
+        if notify:
+            # does pool have any also_notifies configured?
+            context = DesignateContext.get_admin_context()
+            try:
+                pool = self.central_api.get_pool(context, zone.pool_id)
+
+                # if pool has also_notifies - send NOTIFY messages as well.
+                for also_notify in pool.also_notifies:
+                    try:
+                        # we consider it is ok not to check the response for now
+                        self._send_dns_message(dns_message,
+                                               also_notify.host,
+                                               also_notify.port,
+                                               10.0)  # 10 seconds timeout
+                    except dns.exception.Timeout:
+                       LOG.warning(
+                           _LW("Got Timeout while trying to send 'NOTIFY' for "
+                               "'%(zone)s' to '%(server)s:%(port)d'. Timeout="
+                               "'%(timeout)d' seconds.") %
+                               {'zone': zone.name, 'server': also_notify.host,
+                                'port': also_notify.port, 'timeout': timeout})
+
+            # Pool data may not have migrated to the DB yet
+            except exceptions.PoolNotFound:
+                LOG.error(_LE("Pool ID %s not found."), zone.pool_id)
+            # designate-central service may not have started yet
+            except messaging.exceptions.MessagingTimeout:
+                LOG.error(_LE("Timeout looking for pool with ID %s."),
+                          zone.pool_id)
 
         return response, retry
 
