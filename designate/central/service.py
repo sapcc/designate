@@ -879,9 +879,8 @@ class Service(service.RPCService, service.Service):
                 # Do subzone policy check instead of regular create_zone
                 policy.check('create_sub_zone', context, target)
             else:
-                raise exceptions.IllegalChildZone('Unable to create'
-                                                  'subzone in another '
-                                                  'tenants zone')
+                # Do regular check so that admins can create zone anyway
+                policy.check('create_zone', context, target)
         else:
             # If not subzone, regular policy check applies
             policy.check('create_zone', context, target)
