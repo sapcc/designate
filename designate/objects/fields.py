@@ -19,8 +19,11 @@ import dns.exception
 import re
 import uuid
 
+from oslo_log import log as logging
 from oslo_versionedobjects import fields as ovoo_fields
 from oslo_versionedobjects.fields import DateTimeField  # noqa
+
+LOG = logging.getLogger(__name__)
 
 
 class IntegerField(ovoo_fields.IntegerField):
@@ -86,6 +89,13 @@ class IntegerFields(IntegerField):
                 self.min, attr)
             )
         if self.max and value > self.max:
+            LOG.warning(
+                'Value too high: %{val}s vs. max %{max}s for %{field}s',
+                {
+                    "val": value,
+                    "max": self.max,
+                    "field": attr
+                })
             raise ValueError('Value too high for %s' % attr)
         return value
 
@@ -114,6 +124,13 @@ class StringFields(ovoo_fields.StringField):
         else:
             value = super(StringFields, self).coerce(obj, attr, value)
             if self.maxLength and len(value) > self.maxLength:
+                LOG.warning('Value too long: '
+                    '%{length}s vs. max %{max_length}s for %{field}s',
+                    {
+                        "length": len(value),
+                        "max_length": self.maxLength,
+                        "field": attr
+                    })
                 raise ValueError('Value too long for %s' % attr)
             return value
 
