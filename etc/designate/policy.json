@@ -42,6 +42,7 @@
 
     "create_zone": "rule:admin_or_owner",
     "create_sub_zone": "rule:admin_or_owner",
+    "create_super_zone": "rule:admin_or_owner",
     "get_zones": "rule:admin_or_owner",
     "get_zone": "rule:admin_or_owner",
     "get_zone_servers": "rule:admin_or_owner",
@@ -50,7 +51,6 @@
     "update_zone": "rule:admin_or_owner",
     "update_sub_zone": "rule:admin_or_owner",
     "delete_zone": "rule:admin_or_owner",
-    "delete_sub_zone": "rule:admin_or_owner",
     "xfr_zone": "rule:admin_or_owner",
     "abandon_zone": "rule:admin",
     "count_zones": "rule:admin_or_owner",
