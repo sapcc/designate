@@ -614,7 +614,7 @@ class CentralServiceTest(CentralTestCase):
         # Create sub zone
         self.create_zone(**subzone_values)
 
-        context = self.get_admin_context()
+        context = self.get_context()
 
         # Explicitly use a different tenant_id
         context.tenant = '2'
