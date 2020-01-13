@@ -131,7 +131,7 @@ class StringFields(ovoo_fields.StringField):
             value = super(StringFields, self).coerce(obj, attr, value)
             if self.maxLength and len(value) > self.maxLength:
                 LOG.warning('Value too long: '
-                    '%{length}s vs. max %{max_length}s for %{field}s',
+                    '%(length)s vs. max %(max_length)s for %(field)s',
                     {
                         "length": len(value),
                         "max_length": self.maxLength,
