@@ -1,0 +1,9 @@
+dumb-init
+python-memcached
+pymemcache
+redis
+raven
+paste
+
+git+https://github.com/sapcc/openstack-watcher-middleware.git#egg=watcher-middleware
+git+https://github.com/sapcc/openstack-audit-middleware.git@master#egg=audit-middleware
