@@ -24,7 +24,6 @@ import string
 import signal
 import random
 from random import SystemRandom
-import time
 
 import six
 from eventlet import tpool
@@ -947,9 +946,8 @@ class Service(service.RPCService, service.Service):
 
         if zone.obj_attr_is_set('recordsets'):
             for rrset in zone.recordsets:
-                # This allows eventlet to yield, as this looping operation
-                # can be very long-lived.
-                time.sleep(0)
+                # do not yield here as this kills import performance
+                #sleep(0)
                 self._create_recordset_in_storage(
                     context, zone, rrset, increment_serial=False)
 
