@@ -46,7 +46,7 @@ def _retry_on_deadlock(exc):
     return False
 
 
-def retry(cb=None, retries=50, delay=150):
+def retry(cb=None, retries=100, delay=50):
     """A retry decorator that ignores attempts at creating nested retries"""
     def outer(f):
         @functools.wraps(f)
@@ -111,4 +111,72 @@ def transaction(f):
 
     transaction_wrapper.__wrapped_function = f
     transaction_wrapper.__wrapper_name = 'transaction'
+    return transaction_wrapper
+
+
+def retry_shallow_copy(cb=None, retries=100, delay=50):
+    """A retry decorator that ignores attempts at creating nested retries"""
+    def outer(f):
+        @functools.wraps(f)
+        def retry_wrapper(self, *args, **kwargs):
+            if not hasattr(RETRY_STATE, 'held'):
+                # Create the state vars if necessary
+                RETRY_STATE.held = False
+                RETRY_STATE.retries = 0
+
+            if not RETRY_STATE.held:
+                # We're the outermost retry decorator
+                RETRY_STATE.held = True
+
+                try:
+                    while True:
+                        try:
+                            result = f(self, *copy.copy(args),
+                                       **copy.copy(kwargs))
+                            break
+                        except Exception as exc:
+                            RETRY_STATE.retries += 1
+                            if RETRY_STATE.retries >= retries:
+                                # Exceeded retry attempts, raise.
+                                raise
+                            elif cb is not None and cb(exc) is False:
+                                # We're not setup to retry on this exception.
+                                raise
+                            else:
+                                # Retry, with a delay.
+                                time.sleep(delay / float(1000))
+
+                finally:
+                    RETRY_STATE.held = False
+                    RETRY_STATE.retries = 0
+
+            else:
+                # We're an inner retry decorator, just pass on through.
+                result = f(self, *copy.copy(args), **copy.copy(kwargs))
+
+            return result
+        retry_wrapper.__wrapped_function = f
+        retry_wrapper.__wrapper_name = 'retry_shallow_copy'
+        return retry_wrapper
+    return outer
+
+
+def transaction_shallow_copy(f):
+    """Transaction decorator, to be used on class instances with a
+    self.storage attribute where no deep copy is used!
+    """
+    @retry_shallow_copy(cb=_retry_on_deadlock)
+    @functools.wraps(f)
+    def transaction_wrapper(self, *args, **kwargs):
+        self.storage.begin()
+        try:
+            result = f(self, *args, **kwargs)
+            self.storage.commit()
+            return result
+        except Exception:
+            with excutils.save_and_reraise_exception():
+                self.storage.rollback()
+
+    transaction_wrapper.__wrapped_function = f
+    transaction_wrapper.__wrapper_name = 'transaction_shallow_copy'
     return transaction_wrapper
