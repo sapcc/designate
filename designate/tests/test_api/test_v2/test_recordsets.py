@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 import six
+import unittest
 from mock import patch
 import oslo_messaging as messaging
 from oslo_log import log as logging
@@ -860,6 +861,7 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
         self.assertEqual(4, response.json['metadata']['total_count'])
 
     # Secondary Zones specific tests
+    @unittest.skip("Secondary zones are not allowed at CC")
     def test_get_secondary_zone_recordset(self):
         fixture = self.get_zone_fixture('SECONDARY', 1)
         fixture['email'] = 'root@example.com'
@@ -885,6 +887,7 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
         self.assertEqual(recordset['name'], response.json['name'])
         self.assertEqual(recordset['type'], response.json['type'])
 
+    @unittest.skip("Secondary zones are not allowed at CC")
     def test_get_secondary_zone_recordsets(self):
         fixture = self.get_zone_fixture('SECONDARY', 1)
         fixture['email'] = 'foo@bar.io'
@@ -918,6 +921,7 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
 
         self._assert_invalid_paging(data, url, key='recordsets')
 
+    @unittest.skip("Secondary zones are not allowed at CC")
     def test_create_secondary_zone_recordset(self):
         fixture = self.get_zone_fixture('SECONDARY', 1)
         fixture['email'] = 'foo@bar.io'
@@ -929,6 +933,7 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
         self._assert_exception('forbidden', 403, self.client.post_json, url,
                                fixture)
 
+    @unittest.skip("Secondary zones are not allowed at CC")
     def test_update_secondary_zone_recordset(self):
         fixture = self.get_zone_fixture('SECONDARY', 1)
         fixture['email'] = 'foo@bar.io'
@@ -943,6 +948,7 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
         self._assert_exception('forbidden', 403, self.client.put_json, url,
                                {'ttl': 100})
 
+    @unittest.skip("Secondary zones are not allowed at CC")
     def test_delete_secondary_zone_recordset(self):
         fixture = self.get_zone_fixture('SECONDARY', 1)
         fixture['email'] = 'foo@bar.io'

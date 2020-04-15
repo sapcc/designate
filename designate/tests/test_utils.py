@@ -138,15 +138,15 @@ class TestUtils(TestCase):
 class SocketListenTest(unittest.TestCase):
 
     def test_listen_tcp(self):
-        # Test listening on TCP on IPv4 and IPv6 addrs
+        # Test listening on TCP on IPv4
         # bug 1566036
-        for addr in ('', '0.0.0.0', '127.0.0.1', '::', '::1'):
+        for addr in ('', '0.0.0.0', '127.0.0.1'):
             s = utils.bind_tcp(addr, 0, 1)
             s.close()
 
     def test_listen_udp(self):
-        # Test listening on UDP on IPv4 and IPv6 addrs
-        for addr in ('', '0.0.0.0', '127.0.0.1', '::', '::1'):
+        # Test listening on UDP on IPv4
+        for addr in ('', '0.0.0.0', '127.0.0.1'):
             s = utils.bind_udp(addr, 0)
             s.close()
 
