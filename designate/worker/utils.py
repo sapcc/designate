@@ -60,7 +60,7 @@ def send_dns_msg(dns_message, host, port=53):
     :return: dns.Message of the response to the dns query
     """
     # This can raise some exceptions, but we'll catch them elsewhere
-    if not CONF['service:mdns'].all_tcp:
+    if not CONF['service:worker'].all_tcp:
         return dns.query.udp(
             dns_message, host, port=port, timeout=10)
     else:

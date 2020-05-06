@@ -48,6 +48,8 @@ WORKER_OPTS = [
                                   'complexity',
                 help='Whether to allow worker to send NOTIFYs, this will '
                      'noop NOTIFYs in mdns if true'),
+    cfg.BoolOpt('all-tcp', default=False,
+                help='Send all traffic over TCP'),
     cfg.BoolOpt('export_synchronous', default=True,
                 help='Whether to allow synchronous zone exports'),
     cfg.StrOpt('topic', default='worker',
