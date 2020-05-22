@@ -14,6 +14,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 import six
+import unittest
 from mock import patch
 import oslo_messaging as messaging
 from oslo_log import log as logging
@@ -918,6 +919,7 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
 
         self._assert_invalid_paging(data, url, key='recordsets')
 
+    @unittest.skip("We do not allow SECONDARY zones")
     def test_create_secondary_zone_recordset(self):
         fixture = self.get_zone_fixture('SECONDARY', 1)
         fixture['email'] = 'foo@bar.io'
@@ -929,6 +931,7 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
         self._assert_exception('forbidden', 403, self.client.post_json, url,
                                fixture)
 
+    @unittest.skip("We do not allow SECONDARY zones")
     def test_update_secondary_zone_recordset(self):
         fixture = self.get_zone_fixture('SECONDARY', 1)
         fixture['email'] = 'foo@bar.io'
@@ -943,6 +946,7 @@ class ApiV2RecordSetsTest(ApiV2TestCase):
         self._assert_exception('forbidden', 403, self.client.put_json, url,
                                {'ttl': 100})
 
+    @unittest.skip("We do not allow SECONDARY zones")
     def test_delete_secondary_zone_recordset(self):
         fixture = self.get_zone_fixture('SECONDARY', 1)
         fixture['email'] = 'foo@bar.io'
