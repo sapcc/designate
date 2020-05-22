@@ -239,6 +239,7 @@ class RequestHandler(xfr.XFRMixin):
 
         # Render the results, yielding a packet after each TooBig exception.
         renderer = None
+        ctx = None
         while records:
             record = records.pop(0)
 
@@ -278,11 +279,13 @@ class RequestHandler(xfr.XFRMixin):
                         )
                         return
 
-                    yield self._finalize_packet(renderer, request)
+                    packet, ctx = self._finalize_packet(renderer, request, ctx)
+                    yield packet
                     renderer = None
 
         if renderer:
-            yield self._finalize_packet(renderer, request)
+            packet, ctx = self._finalize_packet(renderer, request, ctx)
+            yield packet
         return
 
     def _handle_record_query(self, request):
@@ -394,12 +397,13 @@ class RequestHandler(xfr.XFRMixin):
             recordset.name, ttl, dns.rdataclass.IN, recordset.type, rdata)
 
     @staticmethod
-    def _finalize_packet(renderer, request):
+    def _finalize_packet(renderer, request, ctx):
         renderer.write_header()
         if request.had_tsig:
             # Make the space we reserved for TSIG available for use
             renderer.max_size += TSIG_RRSIZE
-            renderer.add_tsig(
+            ctx = renderer.add_multi_tsig(
+                ctx,
                 request.keyname,
                 request.keyring[request.keyname],
                 request.fudge,
@@ -409,7 +413,7 @@ class RequestHandler(xfr.XFRMixin):
                 request.mac,
                 request.keyalgorithm
             )
-        return renderer
+        return renderer, ctx
 
     @staticmethod
     def _get_max_message_size(had_tsig):
