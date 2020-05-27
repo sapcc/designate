@@ -183,6 +183,20 @@ zone_masters = Table('zone_masters', metadata,
     mysql_charset='utf8'
 )
 
+shared_zones = Table(
+    'shared_zones', metadata,
+    Column('id', UUID(), default=utils.generate_uuid, primary_key=True),
+    Column('created_at', DateTime, default=lambda: timeutils.utcnow()),
+    Column('updated_at', DateTime, onupdate=lambda: timeutils.utcnow()),
+    Column('zone_id', UUID, nullable=False),
+    Column('tenant_id', String(36), default=None, nullable=False),
+    Column('target_tenant_id', String(36), default=None, nullable=False),
+
+    UniqueConstraint('zone_id', 'tenant_id', 'target_tenant_id',
+                     name='unique_shared_zone'),
+    ForeignKeyConstraint(('zone_id',), ['zones.id'], ondelete='CASCADE'),
+)
+
 recordsets = Table('recordsets', metadata,
     Column('id', UUID, default=utils.generate_uuid, primary_key=True),
     Column('version', Integer, default=1, nullable=False),

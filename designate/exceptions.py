@@ -239,6 +239,18 @@ class ZoneHasSubZone(DesignateException):
     error_type = 'zone_has_sub_zone'
 
 
+class SharedZoneHasSubZone(DesignateException):
+    error_code = 400
+    error_type = 'shared_zone_has_sub_zone'
+    expected = True
+
+
+class SharedZoneHasRecordSets(DesignateException):
+    error_code = 400
+    error_type = 'shared_zone_has_recordsets'
+    expected = True
+
+
 class Forbidden(DesignateException):
     error_code = 403
     error_type = 'forbidden'
@@ -361,6 +373,10 @@ class DuplicateZoneMaster(Duplicate):
     error_type = 'duplicate_zone_attribute'
 
 
+class DuplicateSharedZone(Duplicate):
+    error_type = 'duplicate_shared_zone'
+
+
 class NotFound(DesignateException):
     expected = True
     error_code = 404
@@ -465,6 +481,10 @@ class ZoneImportNotFound(NotFound):
 
 class ZoneExportNotFound(NotFound):
     error_type = 'zone_export_not_found'
+
+
+class SharedZoneNotFound(NotFound):
+    error_type = 'shared_zone_not_found'
 
 
 class LastServerDeleteNotAllowed(BadRequest):

@@ -34,11 +34,11 @@ rules = [
     ),
     policy.RuleDefault(
         name="get_recordsets",
-        check_str=base.RULE_ADMIN_OR_OWNER
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED
     ),
     policy.DocumentedRuleDefault(
         name="get_recordset",
-        check_str=base.RULE_ADMIN_OR_OWNER,
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
         description="Get recordset",
         operations=[
             {
@@ -80,8 +80,13 @@ rules = [
     ),
     policy.RuleDefault(
         name="count_recordset",
-        check_str=base.RULE_ADMIN_OR_OWNER,
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
         description="Count recordsets"
+    ),
+    policy.RuleDefault(
+        name="find_recordset",
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
+        description="Find recordsets"
     )
 ]
 

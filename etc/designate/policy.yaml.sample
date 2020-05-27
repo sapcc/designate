@@ -20,7 +20,13 @@
 #"owner_or_target": "rule:target or rule:owner"
 
 #
+#"owner_or_zone_shared": "rule:target or 'True':%(zone_shared)s"
+
+#
 #"admin_or_owner_or_target": "rule:owner_or_target or rule:admin"
+
+#
+#"admin_or_owner_or_zone_shared": "rule:owner_or_zone_shared or rule:admin"
 
 #
 #"admin_or_target": "rule:admin or rule:target"
@@ -134,13 +140,13 @@
 #"create_recordset": "('PRIMARY':%(zone_type)s and rule:admin_or_owner) OR ('SECONDARY':%(zone_type)s AND is_admin:True)"
 
 #
-#"get_recordsets": "rule:admin_or_owner"
+#"get_recordsets": "rule:admin_or_owner_or_zone_shared"
 
 # Get recordset
 # GET  /v2/zones/{zone_id}/recordsets/{recordset_id}
 # DELETE  /v2/zones/{zone_id}/recordsets/{recordset_id}
 # PUT  /v2/zones/{zone_id}/recordsets/{recordset_id}
-#"get_recordset": "rule:admin_or_owner"
+#"get_recordset": "rule:admin_or_owner_or_zone_shared"
 
 # Update recordset
 # PUT  /v2/zones/{zone_id}/recordsets/{recordset_id}
@@ -152,7 +158,7 @@
 #"delete_recordset": "('PRIMARY':%(zone_type)s and rule:admin_or_owner) OR ('SECONDARY':%(zone_type)s AND is_admin:True)"
 
 # Count recordsets
-#"count_recordset": "rule:admin_or_owner"
+#"count_recordset": "rule:admin_or_owner_or_zone_shared"
 
 # Find a single Service Status
 # GET  /v2/service_status/{service_id}
@@ -164,6 +170,22 @@
 
 #
 #"update_service_status": "rule:admin"
+
+# Get Shared Zone
+# GET  /v2/zones/share/{shared_zone_id}
+#"get_shared_zone": "rule:admin_or_owner"
+
+# Share Zone
+# POST  /v2/zones/share
+#"share_zone": "rule:admin_or_owner"
+
+# List Shared Zones
+# GET  /v2/zones/share
+#"find_shared_zones": "rule:admin_or_owner"
+
+# Unshare Zone
+# DELETE  /v2/zones/share/{shared_zone_id}
+#"unshare_zone": "rule:admin_or_owner"
 
 # Find all Tenants.
 #"find_tenants": "rule:admin"
