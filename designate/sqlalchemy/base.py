@@ -21,7 +21,8 @@ from oslo_db.sqlalchemy import utils as oslodb_utils
 from oslo_db import exception as oslo_db_exception
 from oslo_log import log as logging
 from oslo_utils import timeutils
-from sqlalchemy import select, or_, between, func, distinct
+from sqlalchemy import select, between, func, distinct, literal_column
+from sqlalchemy.sql import Select as SelectQueryCls, Update as UpdateQueryCls
 
 from designate import exceptions
 from designate import objects
@@ -147,19 +148,31 @@ class SQLAlchemy(object, metaclass=abc.ABCMeta):
         return query
 
     def _apply_tenant_criteria(self, context, table, query,
-                               include_null_tenant=True):
+                               include_null_tenant=True,
+                               include_shared=True):
         if hasattr(table.c, 'tenant_id'):
             if not context.all_tenants:
+                tenant_condition = table.c.tenant_id == context.project_id
+
                 # NOTE: The query doesn't work with table.c.tenant_id is None,
                 # so I had to force flake8 to skip the check
                 if include_null_tenant:
-                    query = query.where(or_(
-                            table.c.tenant_id == context.project_id,
-                            table.c.tenant_id == None))  # NOQA
-                else:
-                    query = query.where(
-                        table.c.tenant_id == context.project_id
+                    tenant_condition |= table.c.tenant_id == None # NOQA
+
+                shared_zones_query = (
+                    isinstance(query, SelectQueryCls) and
+                    'target_tenant_id' in query.columns or
+                    isinstance(query, UpdateQueryCls) and
+                    table.name == 'zones'
+                )
+
+                if shared_zones_query and include_shared:
+                    tenant_condition |= (
+                        literal_column('target_tenant_id') ==
+                        context.project_id
                     )
+
+                query = query.where(tenant_condition)
 
         return query
 
@@ -522,7 +535,7 @@ class SQLAlchemy(object, metaclass=abc.ABCMeta):
         return total_count, rrsets
 
     def _update(self, context, table, obj, exc_dup, exc_notfound,
-                skip_values=None):
+                skip_values=None, query=None):
         # TODO(graham): Re Enable this
 
         # This was disabled as all the tests generate invalid Objects
@@ -536,11 +549,15 @@ class SQLAlchemy(object, metaclass=abc.ABCMeta):
             for skip_value in skip_values:
                 values.pop(skip_value, None)
 
-        query = table.update()\
-                     .where(table.c.id == obj.id)\
-                     .values(**values)
+        if query is None:
+            query = table.update().where(table.c.id == obj.id)
 
-        query = self._apply_tenant_criteria(context, table, query)
+        query = query.values(**values)
+
+        query = self._apply_tenant_criteria(
+            context, table, query,
+            include_shared=getattr(obj, 'shared', False)
+        )
         query = self._apply_deleted_criteria(context, table, query)
         query = self._apply_version_increment(context, table, query)
 
@@ -560,7 +577,8 @@ class SQLAlchemy(object, metaclass=abc.ABCMeta):
 
         return _set_object_from_model(obj, resultproxy.fetchone())
 
-    def _delete(self, context, table, obj, exc_notfound, hard_delete=False):
+    def _delete(self, context, table, obj, exc_notfound, hard_delete=False,
+                soft_delete_query=None):
         """Perform item deletion or soft-delete.
         """
 
@@ -585,7 +603,10 @@ class SQLAlchemy(object, metaclass=abc.ABCMeta):
             # NOTE(kiall): It should be impossible for a duplicate exception to
             #              be raised in this call, therefore, it is OK to pass
             #              in "None" as the exc_dup param.
-            return self._update(context, table, obj, None, exc_notfound)
+            return self._update(
+                context, table, obj, None, exc_notfound,
+                query=soft_delete_query
+            )
 
         # Delete the quota.
         query = table.delete().where(table.c.id == obj.id)

@@ -17,6 +17,7 @@ from oslo_policy import policy
 
 
 RULE_ADMIN_OR_OWNER = 'rule:admin_or_owner'
+RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED = 'rule:admin_or_owner_or_zone_shared'
 RULE_ADMIN = 'rule:admin'
 RULE_ZONE_PRIMARY_OR_ADMIN = \
     "('PRIMARY':%(zone_type)s and rule:admin_or_owner) "\
@@ -82,8 +83,14 @@ rules = [
         name="owner_or_target",
         check_str="rule:target or rule:owner"),
     policy.RuleDefault(
+        name="owner_or_zone_shared",
+        check_str="rule:owner or 'True':%(zone_shared)s"),
+    policy.RuleDefault(
         name="admin_or_owner_or_target",
         check_str="rule:owner_or_target or rule:admin"),
+    policy.RuleDefault(
+        name="admin_or_owner_or_zone_shared",
+        check_str="rule:owner_or_zone_shared or rule:admin"),
     policy.RuleDefault(
         name="admin_or_target",
         check_str="rule:admin or rule:target"),

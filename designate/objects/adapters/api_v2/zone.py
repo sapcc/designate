@@ -54,6 +54,7 @@ class ZoneAPIv2Adapter(base.APIv2Adapter):
             "serial": {
                 'read_only': False
             },
+            "shared": {},
             "status": {},
             "action": {},
             "version": {},
@@ -100,6 +101,17 @@ class ZoneAPIv2Adapter(base.APIv2Adapter):
 
         return super(ZoneAPIv2Adapter, cls)._parse_object(
             values, object, *args, **kwargs)
+
+    @classmethod
+    def _render_object(cls, object, *args, **kwargs):
+        result = super()._render_object(object, *args, **kwargs)
+
+        # NOTE(imalinovskiy): Do not show 'shared' attribute for not-shared
+        # zones to maintain API compatibility with old clients.
+        if 'shared' in result and not result.get('shared', False):
+            result.pop("shared")
+
+        return result
 
 
 class ZoneListAPIv2Adapter(base.APIv2Adapter):

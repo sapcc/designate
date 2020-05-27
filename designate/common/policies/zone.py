@@ -124,7 +124,7 @@ rules = [
     ),
     policy.DocumentedRuleDefault(
         name="get_zone",
-        check_str=base.SYSTEM_OR_PROJECT_READER,
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
         scope_types=['system', 'project'],
         description="Get Zone",
         operations=[

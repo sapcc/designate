@@ -95,13 +95,13 @@ rules = [
     ),
     policy.RuleDefault(
         name="get_recordsets",
-        check_str=base.SYSTEM_OR_PROJECT_READER,
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
         scope_types=['system', 'project'],
         deprecated_rule=deprecated_get_recordsets
     ),
     policy.DocumentedRuleDefault(
         name="get_recordset",
-        check_str=base.SYSTEM_OR_PROJECT_READER,
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
         scope_types=['system', 'project'],
         description="Get recordset",
         operations=[
@@ -149,10 +149,16 @@ rules = [
     ),
     policy.RuleDefault(
         name="count_recordset",
-        check_str=base.SYSTEM_OR_PROJECT_READER,
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
         scope_types=['system', 'project'],
         description="Count recordsets",
         deprecated_rule=deprecated_count_recordset
+    ),
+    policy.RuleDefault(
+        name="find_recordset",
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
+        scope_types=['system', 'project'],
+        description="Find recordsets"
     )
 ]
 
