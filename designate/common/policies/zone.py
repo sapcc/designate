@@ -35,7 +35,7 @@ rules = [
     ),
     policy.DocumentedRuleDefault(
         name="get_zone",
-        check_str=base.RULE_ADMIN_OR_OWNER,
+        check_str=base.RULE_ADMIN_OR_OWNER_OR_ZONE_SHARED,
         description="Get Zone",
         operations=[
             {

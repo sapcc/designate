@@ -306,6 +306,51 @@ class Storage(DriverPlugin):
         """
 
     @abc.abstractmethod
+    def share_zone(self, context, shared_zone):
+        """
+        Share zone
+
+        :param context: RPC Context.
+        :param shared_zone: Shared Zone dict
+        :param target_project_id: project_id
+        """
+
+    @abc.abstractmethod
+    def unshare_zone(self, context, shared_zone_id):
+        """
+        Unshare zone
+
+        :param context: RPC Context.
+        :param shared_zone_id: Shared Zone Id
+        :param target_project_id: project_id
+        """
+
+    @abc.abstractmethod
+    def find_shared_zones(self, context, criterion=None, marker=None,
+                          limit=None, sort_key=None, sort_dir=None):
+        """
+        Find shared zones
+
+        :param context: RPC Context.
+        :param criterion: Criteria to filter by.
+        :param marker: Resource ID from which after the requested page will
+                       start after
+        :param limit: Integer limit of objects of the page size after the
+                      marker
+        :param sort_key: Key from which to sort after.
+        :param sort_dir: Direction to sort after using sort_key.
+        """
+
+    @abc.abstractmethod
+    def get_shared_zone(self, context, shared_zone_id):
+        """
+        Get a shared zone via ID
+
+        :param context: RPC Context.
+        :param shared_zone_id: Shared Zone Id
+        """
+
+    @abc.abstractmethod
     def create_recordset(self, context, zone_id, recordset):
         """
         Create a recordset on a given Zone ID
