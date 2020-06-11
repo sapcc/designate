@@ -17,9 +17,13 @@ import abc
 
 import six
 from oslo_config import cfg
+from oslo_log import log as logging
 
 from designate import exceptions
 from designate.plugin import DriverPlugin
+
+
+LOG = logging.getLogger(__name__)
 
 
 @six.add_metaclass(abc.ABCMeta)
@@ -34,6 +38,8 @@ class Quota(DriverPlugin):
         for resource, value in values.items():
             if resource in quotas:
                 if value >= quotas[resource]:
+                    LOG.debug("Not enough quota for %s in project with id %s",
+                              quotas[resource], tenant_id)
                     raise exceptions.OverQuota()
             else:
                 raise exceptions.QuotaResourceUnknown("%s is not a valid quota"
