@@ -2223,7 +2223,7 @@ class CentralQuotaTest(unittest.TestCase):
         cfg.CONF([], project='designate')
         self.CONF.config(quota_driver="noop")
         self.context = mock.Mock()
-        self.zone = mock.Mock()
+        self.zone = Mockzone()
         self.quotas_of_one = {'zones': 1,
                               'zone_recordsets': 1,
                               'zone_records': 1,
