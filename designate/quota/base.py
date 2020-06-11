@@ -16,9 +16,13 @@
 import abc
 
 from oslo_config import cfg
+from oslo_log import log as logging
 
 from designate import exceptions
 from designate.plugin import DriverPlugin
+
+
+LOG = logging.getLogger(__name__)
 
 
 class Quota(DriverPlugin, metaclass=abc.ABCMeta):
@@ -34,6 +38,8 @@ class Quota(DriverPlugin, metaclass=abc.ABCMeta):
                 # Setting the resource quota to a negative value will make
                 # the resource unlimited
                 if quotas[resource] >= 0 and value > quotas[resource]:
+                    LOG.debug("Not enough quota for %s in project with id %s",
+                              quotas[resource], tenant_id)
                     raise exceptions.OverQuota()
             else:
                 raise exceptions.QuotaResourceUnknown("%s is not a valid quota"
