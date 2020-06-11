@@ -2221,7 +2221,7 @@ class CentralQuotaTest(unittest.TestCase):
 
     def setUp(self):
         self.context = mock.Mock()
-        self.zone = mock.Mock()
+        self.zone = Mockzone()
 
     @patch('designate.central.service.storage')
     @patch('designate.central.service.quota')
