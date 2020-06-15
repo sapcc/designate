@@ -228,11 +228,13 @@ class CentralAPI(object):
                                 recordset_id=recordset_id)
 
     def find_recordsets(self, context, criterion=None, marker=None, limit=None,
-                        sort_key=None, sort_dir=None, force_index=False):
+                        sort_key=None, sort_dir=None, force_index=False,
+                        enforce_tenant_criteria=False):
         return self.client.call(context, 'find_recordsets',
                                 criterion=criterion, marker=marker,
                                 limit=limit, sort_key=sort_key,
-                                sort_dir=sort_dir, force_index=force_index)
+                                sort_dir=sort_dir, force_index=force_index,
+                                enforce_tenant_criteria=enforce_tenant_criteria)
 
     def find_recordset(self, context, criterion=None):
         return self.client.call(context, 'find_recordset', criterion=criterion)

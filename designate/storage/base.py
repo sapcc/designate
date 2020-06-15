@@ -371,7 +371,8 @@ class Storage(DriverPlugin):
 
     @abc.abstractmethod
     def find_recordsets(self, context, criterion=None, marker=None, limit=None,
-                        sort_key=None, sort_dir=None, force_index=False):
+                        sort_key=None, sort_dir=None, force_index=False,
+                        apply_tenant_criteria=None):
         """
         Find RecordSets.
 

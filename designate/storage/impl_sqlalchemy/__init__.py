@@ -681,7 +681,7 @@ class SQLAlchemyStorage(sqlalchemy_base.SQLAlchemy, storage_base.Storage):
     # RecordSet Methods
     def _find_recordsets(self, context, criterion, one=False, marker=None,
                          limit=None, sort_key=None, sort_dir=None,
-                         force_index=False):
+                         force_index=False, apply_tenant_criteria=None):
 
         # Check to see if the criterion can use the reverse_name column
         criterion = self._rname_check(criterion)
@@ -692,11 +692,15 @@ class SQLAlchemyStorage(sqlalchemy_base.SQLAlchemy, storage_base.Storage):
             # assumes each key in criterion to be a column name.
             del criterion['zones_deleted']
 
-        apply_tenant_criteria = True
+        if apply_tenant_criteria is None:
+            # if apply tenant criteria is not overridden earlier,
+            # use True, unless the zone is shared:
+            apply_tenant_criteria = True
 
-        if criterion and criterion.get('zone_id', None):
-            zone = self.get_zone(context, criterion['zone_id'])
-            apply_tenant_criteria = not zone.shared
+            if criterion and criterion.get('zone_id', None):
+                zone = self.get_zone(context, criterion['zone_id'])
+                # for shared zones the criteria is not applied unless enforced
+                apply_tenant_criteria = not zone.shared
 
         if one:
             rjoin = tables.recordsets.join(
@@ -807,10 +811,12 @@ class SQLAlchemyStorage(sqlalchemy_base.SQLAlchemy, storage_base.Storage):
         return self._find_recordsets(context, {'id': recordset_id}, one=True)
 
     def find_recordsets(self, context, criterion=None, marker=None, limit=None,
-                        sort_key=None, sort_dir=None, force_index=False):
+                        sort_key=None, sort_dir=None, force_index=False,
+                        apply_tenant_criteria=None):
         return self._find_recordsets(context, criterion, marker=marker,
                                      sort_dir=sort_dir, sort_key=sort_key,
-                                     limit=limit, force_index=force_index)
+                                     limit=limit, force_index=force_index,
+                                     apply_tenant_criteria=apply_tenant_criteria)
 
     def find_recordset(self, context, criterion):
         return self._find_recordsets(context, criterion, one=True)
@@ -916,7 +922,11 @@ class SQLAlchemyStorage(sqlalchemy_base.SQLAlchemy, storage_base.Storage):
         # Fetch the zone as we need the tenant_id
         zone = self._find_zones(context, {'id': zone_id}, one=True)
 
-        record.tenant_id = zone.tenant_id
+        if zone.shared:
+            record.tenant_id = context.project_id
+        else:
+            record.tenant_id = zone.tenant_id
+
         record.zone_id = zone_id
         record.recordset_id = recordset_id
         record.hash = self._recalculate_record_hash(record)

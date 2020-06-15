@@ -1506,14 +1506,20 @@ class Service(service.RPCService):
 
     @rpc.expected_exceptions()
     def find_recordsets(self, context, criterion=None, marker=None, limit=None,
-                        sort_key=None, sort_dir=None, force_index=False):
+                        sort_key=None, sort_dir=None, force_index=False,
+                        enforce_tenant_criteria=False):
         zone_shared = False
+        apply_tenant_criteria = None
 
         if criterion and criterion.get('zone_id', None):
             # NOTE: We need to ensure the zone actually exists, otherwise
             # we may return deleted recordsets instead of a zone not found
             zone = self.get_zone(context, criterion['zone_id'])
             zone_shared = zone.shared
+
+            if zone_shared and enforce_tenant_criteria:
+                # inside a shared zone and tenant criteria enforced from api:
+                apply_tenant_criteria = True
 
         target = {
             'tenant_id': context.project_id,
@@ -1523,7 +1529,8 @@ class Service(service.RPCService):
 
         recordsets = self.storage.find_recordsets(context, criterion, marker,
                                                   limit, sort_key, sort_dir,
-                                                  force_index)
+                                                  force_index,
+                                                  apply_tenant_criteria)
 
         return recordsets
 

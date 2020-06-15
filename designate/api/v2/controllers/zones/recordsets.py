@@ -50,7 +50,8 @@ class RecordSetsController(rest.RestController):
         request = pecan.request
         context = request.environ['context']
         recordsets = common.retrieve_matched_rrsets(context, self, zone_id,
-                                                    **params)
+                                                    **dict(params,
+                                                           enforce_tenant_criteria=True))
 
         return DesignateAdapter.render('API_v2', recordsets, request=request)
 
