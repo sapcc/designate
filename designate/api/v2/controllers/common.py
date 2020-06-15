@@ -17,6 +17,9 @@ from designate import utils
 
 
 def retrieve_matched_rrsets(context, controller_obj, zone_id, **params):
+    # tenant critieria is not enforced by default:
+    enforce_tenant_criteria = params.pop('enforce_tenant_criteria', False)
+
     # Extract the pagination params
     marker, limit, sort_key, sort_dir = utils.get_paging_params(
             context, params, controller_obj.SORT_KEYS)
@@ -34,7 +37,8 @@ def retrieve_matched_rrsets(context, controller_obj, zone_id, **params):
         force_index = False
 
     recordsets = controller_obj.central_api.find_recordsets(
-            context, criterion, marker, limit, sort_key, sort_dir, force_index)
+            context, criterion, marker, limit, sort_key, sort_dir,
+            force_index, enforce_tenant_criteria)
 
     return recordsets
 
