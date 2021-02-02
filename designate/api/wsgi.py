@@ -17,11 +17,12 @@ from oslo_config import cfg
 from oslo_log import log as logging
 from paste import deploy
 
+from designate.common import config
+from designate.common import profiler
 from designate import conf
 from designate import heartbeat_emitter
 from designate import policy
 from designate import rpc
-from designate.common import config
 
 CONF = conf.CONF
 
@@ -47,6 +48,7 @@ def init_application():
     if not rpc.initialized():
         rpc.init(CONF)
 
+    profiler.setup_profiler("designate-api", CONF.host)
     heartbeat = heartbeat_emitter.get_heartbeat_emitter('api')
     heartbeat.start()
 
