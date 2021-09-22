@@ -7,4 +7,4 @@ paste
 
 git+https://github.com/sapcc/openstack-watcher-middleware.git#egg=watcher-middleware
 git+https://github.com/sapcc/openstack-audit-middleware.git@master#egg=audit-middleware
-git+https://github.com/sapcc/dnspython.git@ccloud#egg=dnspython
+git+https://github.com/sapcc/dnspython.git@train-m3#egg=dnspython
