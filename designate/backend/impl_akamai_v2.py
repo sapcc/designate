@@ -193,7 +193,7 @@ class AkamaiBackend(base.Backend):
             context, zone, self._host, self._port, self.timeout,
             self.retry_interval, self.max_retries, self.delay)
 
-    def delete_zone(self, context, zone):
+    def delete_zone(self, context, zone, zone_params=None):
         """Delete a DNS zone"""
         LOG.debug('Delete Zone')
         self.client.delete_zone(zone['name'])

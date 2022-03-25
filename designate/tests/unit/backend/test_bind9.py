@@ -156,7 +156,7 @@ class Bind9BackendTestCase(designate.tests.TestCase):
             objects.PoolTarget.from_dict(self.target)
         )
 
-        backend.delete_zone(self.admin_context, self.zone)
+        backend.delete_zone(self.admin_context, self.zone, {})
 
         mock_execute.assert_called_with(
             ['delzone', 'example.com ']
