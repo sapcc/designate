@@ -34,7 +34,11 @@ rules = [
     policy.RuleDefault(
         name="use_sudo",
         check_str=base.RULE_ADMIN,
-        description='Accept sudo from user to tenant.')
+        description='Accept sudo from user to tenant.'),
+    policy.RuleDefault(
+        name="hard_delete",
+        check_str=base.RULE_ADMIN,
+        description="Clean backend resources associated with zone")
 ]
 
 

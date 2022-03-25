@@ -118,7 +118,7 @@ class NS1Backend(base.Backend):
             context, zone, self.host, self.port, self.timeout,
             self.retry_interval, self.max_retries, self.delay)
 
-    def delete_zone(self, context, zone):
+    def delete_zone(self, context, zone, zone_params=None):
         """Delete a DNS zone"""
 
         # First verify that the zone exists

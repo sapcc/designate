@@ -274,6 +274,7 @@ class CentralBasic(TestCase):
             'sudo',
             'abandon',
             'all_tenants',
+            'hard_delete'
         ])
 
         self.service = Service()
@@ -973,6 +974,7 @@ class CentralZoneTestCase(CentralBasic):
 
     def test_delete_zone_has_subzone(self):
         self.context.abandon = False
+        self.context.hard_delete = False
         self.service.storage.get_zone.return_value = RoObject(
             name='foo',
             tenant_id='2',
@@ -1013,6 +1015,7 @@ class CentralZoneTestCase(CentralBasic):
 
     def test_delete_zone(self):
         self.context.abandon = False
+        self.context.hard_delete = False
         self.service.storage.get_zone.return_value = RoObject(
             name='foo',
             tenant_id='2',
@@ -1036,6 +1039,36 @@ class CentralZoneTestCase(CentralBasic):
         self.assertEqual('foo', out.name)
         pcheck, ctx, target = \
             designate.central.service.policy.check.call_args[0]
+
+        self.assertEqual('delete_zone', pcheck)
+
+    def test_delete_zone_hard_delete(self):
+        self.context.abandon = False
+        self.context.hard_delete = True
+        self.service.storage.get_zone.return_value = RoObject(
+            name='foo',
+            tenant_id='2',
+            shared=self.zone_shared,
+        )
+        self.service._delete_zone_in_storage = mock.Mock(
+            return_value=RoObject(
+                name='foo'
+            )
+        )
+        self.service.storage.count_zones.return_value = 0
+        out = self.service.delete_zone(self.context,
+                                       CentralZoneTestCase.zone__id)
+        self.assertFalse(self.service.storage.delete_zone.called)
+        self.assertTrue(self.service.worker_api.delete_zone.called)
+        self.assertTrue(designate.central.service.policy.check.called)
+        ctx, deleted_dom = \
+            self.service.worker_api.delete_zone.call_args[0]
+
+        self.assertEqual('foo', deleted_dom.name)
+        self.assertEqual('foo', out.name)
+        pcheck, ctx, target = \
+            designate.central.service.policy.check.call_args[0]
+
         self.assertEqual('delete_zone', pcheck)
 
     def test_delete_zone_in_storage(self):

@@ -28,6 +28,7 @@ def set_defaults():
                        'X-Auth-All-Projects',
                        'X-Designate-Pool-ID',
                        'X-Designate-Edit-Managed-Records',
+                       'X-Designate-Hard-Delete',
                        'OpenStack-DNS-Hide-Counts'],
         expose_headers=['X-OpenStack-Request-ID',
                         'Host'],

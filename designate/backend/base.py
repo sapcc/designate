@@ -86,7 +86,7 @@ class Backend(DriverPlugin):
             self.retry_interval, self.max_retries, self.delay)
 
     @abc.abstractmethod
-    def delete_zone(self, context, zone):
+    def delete_zone(self, context, zone, zone_params):
         """
         Delete a DNS zone.
 
