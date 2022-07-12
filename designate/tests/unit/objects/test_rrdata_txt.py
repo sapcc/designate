@@ -34,3 +34,30 @@ class RRDataTXTTest(oslotest.base.BaseTestCase):
             'Provided object does not match schema',
             record.validate
         )
+
+    def test_multiple_strings_one_record(self):
+        # these quotes do not have to be escaped as
+        # per rfc7208 3.3 and rfc1035 3.3.14
+        record = objects.TXT(data='"foo" "bar"')
+        self.assertRaisesRegex(
+            exceptions.InvalidObject,
+            'Provided object does not match schema',
+            record.validate
+        )
+
+    def test_reject_non_matched_quotes(self):
+        record = objects.TXT()
+        self.assertRaisesRegex(
+            exceptions.InvalidObject,
+            "TXT record is missing a double quote either at beginning "
+            "or at end.",
+            record._from_string,
+            '"foo'
+        )
+        self.assertRaisesRegex(
+            exceptions.InvalidObject,
+            "TXT record is missing a double quote either at beginning "
+            "or at end.",
+            record._from_string,
+            'foo"'
+        )
