@@ -185,11 +185,7 @@ class RequestHandler(xfr.XFRMixin):
 
         if tsigkey is None and CONF['service:mdns'].query_enforce_tsig:
             raise exceptions.Forbidden('Request is not TSIG signed')
-        elif tsigkey is None:
-            # Default to using the default_pool_id when no TSIG key is
-            # available
-            criterion['pool_id'] = CONF['service:central'].default_pool_id
-        else:
+        elif tsigkey is not None:
             if tsigkey.scope == 'POOL':
                 criterion['pool_id'] = tsigkey.resource_id
             elif tsigkey.scope == 'ZONE':

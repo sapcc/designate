@@ -1083,6 +1083,23 @@ class CentralZoneTestCase(CentralBasic):
 
         self.assertEqual(exceptions.BadRequest, exc.exc_info[0])
 
+    def test_move_zone(self):
+        z = objects.Zone(tenant_id='1', name='example.com.', ttl=60)
+        z.pool_id = CentralZoneTestCase.pool__id
+
+        self.service.storage.get_pool = mock.Mock(
+            return_value=MockPool())
+        self.service._increment_zone_serial = mock.Mock(
+            return_value=RoObject(
+                name='example.com.', tenant_id='1',
+                type='PRIMARY', action='UPDATE',
+                pool_id=CentralZoneTestCase.pool__id,
+            ))
+        zone = self.service._update_zone_in_storage(self.context, z)
+
+        self.assertEqual(CentralZoneTestCase.pool__id, zone.pool_id)
+        self.assertEqual('UPDATE', zone.action)
+
     def test_count_report(self):
         self.service.count_zones = mock.Mock(return_value=1)
         self.service.count_records = mock.Mock(return_value=2)

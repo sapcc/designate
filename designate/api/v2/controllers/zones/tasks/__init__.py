@@ -20,6 +20,8 @@ from designate.api.v2.controllers.zones.tasks.transfer_requests \
 from designate.api.v2.controllers.zones.tasks.transfer_accepts \
     import TransferAcceptsController as TRA
 from designate.api.v2.controllers.zones.tasks import abandon
+from designate.api.v2.controllers.zones.tasks.move \
+    import MoveController
 from designate.api.v2.controllers.zones.tasks.xfr import XfrController
 from designate.api.v2.controllers.zones.tasks.imports \
     import ZoneImportController
@@ -37,6 +39,7 @@ class TasksController(object):
     transfer_requests = TRC()
     abandon = abandon.AbandonController()
     xfr = XfrController()
+    move = MoveController()
     imports = ZoneImportController()
     exports = ZoneExportsController()
     export = ZoneExportCreateController()

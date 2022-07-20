@@ -100,6 +100,12 @@ deprecated_touch_zone = policy.DeprecatedRule(
     deprecated_reason=DEPRECATED_REASON,
     deprecated_since=versionutils.deprecated.WALLABY
 )
+deprecated_move_zone = policy.DeprecatedRule(
+    name="move_zone",
+    check_str=base.RULE_ADMIN_OR_OWNER,
+    deprecated_reason=DEPRECATED_REASON,
+    deprecated_since=versionutils.deprecated.WALLABY
+)
 
 
 rules = [
@@ -235,6 +241,19 @@ rules = [
         check_str=base.SYSTEM_ADMIN_OR_PROJECT_MEMBER,
         scope_types=['system', 'project'],
         deprecated_rule=deprecated_purge_zones
+    ),
+    policy.DocumentedRuleDefault(
+        name="move_zone",
+        check_str=base.SYSTEM_ADMIN_OR_PROJECT_MEMBER,
+        scope_types=['system', 'project'],
+        description="Move Zone",
+        operations=[
+            {
+                'path': '/v2/zones/{zone_id}/tasks/move',
+                'method': 'POST'
+            }
+        ],
+        deprecated_rule=deprecated_move_zone,
     )
 ]
 

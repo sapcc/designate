@@ -184,7 +184,7 @@ def notification(notification_type):
 
 
 class Service(service.RPCService):
-    RPC_API_VERSION = '6.3'
+    RPC_API_VERSION = '6.4'
 
     target = messaging.Target(version=RPC_API_VERSION)
 
@@ -1384,6 +1384,57 @@ class Service(service.RPCService):
         policy.check('get_shared_zone', context, target)
 
         return self.storage.get_shared_zone(context, shared_zone_id)
+
+    @rpc.expected_exceptions()
+    @notification('dns.domain.update')
+    @notification('dns.zone.update')
+    @synchronized_zone()
+    def move_zone(self, context, zone):
+        """Move zone. Perform checks and then create zone in destination pool
+
+        :returns: moved zone
+        """
+        target = {
+            'zone_id': zone.obj_get_original_value('id'),
+            'tenant_id': zone.obj_get_original_value('tenant_id'),
+        }
+
+        policy.check('move_zone', context, target)
+
+        # Get the destination pool
+        changes = zone.obj_get_changes()
+        pool_id = changes.get('pool_id')
+        if pool_id is None:
+            orig_pool_id = zone.obj_get_original_value('pool_id')
+            pool_id = self.scheduler.schedule_zone(context, zone)
+            if pool_id == orig_pool_id:
+                raise exceptions.BadRequest('No valid pool selected')
+            zone.pool_id = pool_id
+
+        # Need elevated context to get the pool
+        elevated_context = context.elevated(all_tenants=True)
+        pool = self.storage.get_pool(elevated_context, pool_id)
+        if pool is None:
+            raise exceptions.BadRequest('Target pool does not exist')
+
+        pool_ns_records = self._get_pool_ns_records(context, pool_id)
+        if len(pool_ns_records) == 0:
+            LOG.critical('No nameservers configured. Please create at least '
+                         'one nameserver on target pool')
+            raise exceptions.NoServersConfigured()
+
+        zone = self._update_zone_in_storage(
+                context, zone, increment_serial=True)
+
+        LOG.info("Moving zone '%(zone)s'", {'zone': zone.name})
+        clone_zone = copy.deepcopy(zone)
+        clone_zone.pool_id = pool_id
+        clone_zone.refresh = self._generate_soa_refresh_interval()
+        clone_zone.action = 'CREATE'
+        clone_zone.status = 'PENDING'
+        self.zone_api.create_zone(context, clone_zone)
+
+        return clone_zone
 
     # RecordSet Methods
     @rpc.expected_exceptions()

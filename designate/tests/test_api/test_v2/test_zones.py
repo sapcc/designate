@@ -500,6 +500,14 @@ class ApiV2ZonesTest(ApiV2TestCase):
         url = '/zones/tasks/abandon'
         self._assert_exception('not_found', 404, self.client.get, url)
 
+    def test_post_move_zone(self):
+        zone = self.create_zone()
+        pool_id = zone.pool_id
+
+        body = {'pool_id': pool_id}
+        self._assert_exception('bad_request', 400, self.client.post_json,
+                               '/zones/%s/tasks/move' % zone['id'], body)
+
     def test_get_zone_tasks(self):
         # This is an invalid endpoint - should return 404
         zone = self.create_zone()
