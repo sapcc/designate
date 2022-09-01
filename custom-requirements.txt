@@ -1,4 +1,5 @@
 dumb-init
+jaeger-client
 python-memcached
 pymemcache
 redis
