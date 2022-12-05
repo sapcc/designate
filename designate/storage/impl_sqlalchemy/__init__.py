@@ -1895,6 +1895,11 @@ class SQLAlchemyStorage(sqlalchemy_base.SQLAlchemy, storage_base.Storage):
             exceptions.DuplicateServiceStatus,
             exceptions.ServiceStatusNotFound)
 
+    def delete_service_status(self, context, service_status):
+        return self._delete(
+            context, tables.service_status, service_status,
+            exceptions.ServiceStatusNotFound)
+
     # diagnostics
     def ping(self, context):
         start_time = time.time()

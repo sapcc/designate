@@ -61,12 +61,27 @@ class HeartbeatEmitter(plugin.DriverPlugin):
 
     def stop(self):
         self._timer.stop()
+        service_status = objects.ServiceStatus(
+            service_name=self._service_name,
+            hostname=self._hostname,
+            status='DOWN',
+            stats={},
+            capabilities={},
+            heartbeated_at=timeutils.utcnow()
+        )
+
+        LOG.trace('Stopping %s', service_status)
+        self.stop_transmit(service_status)
 
     def get_status(self):
         return self._status, self._stats, self._capabilities
 
     @abc.abstractmethod
     def transmit(self, status):
+        pass
+
+    @abc.abstractmethod
+    def stop_transmit(selt, status):
         pass
 
     def _emit_heartbeat(self):
@@ -95,6 +110,9 @@ class NoopEmitter(HeartbeatEmitter):
     def transmit(self, status):
         LOG.info(status)
 
+    def stop_transmit(self, status):
+        LOG.info(status)
+
 
 class RpcEmitter(HeartbeatEmitter):
     __plugin_name__ = 'rpc'
@@ -107,3 +125,8 @@ class RpcEmitter(HeartbeatEmitter):
         admin_context = context.DesignateContext.get_admin_context()
         api = self.rpc_api or central_rpcapi.CentralAPI.get_instance()
         api.update_service_status(admin_context, status)
+
+    def stop_transmit(self, status):
+        admin_context = context.DesignateContext.get_admin_context()
+        api = self.rpc_api or central_rpcapi.CentralAPI.get_instance()
+        api.delete_service_status(admin_context, status)

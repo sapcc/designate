@@ -28,6 +28,7 @@ from oslo_config import cfg
 
 from designate import utils
 from designate import dnsutils
+from designate import heartbeat_emitter
 from designate import service
 from designate.agent import handler
 from designate.backend import agent_backend
@@ -54,13 +55,17 @@ class Service(service.Service):
 
         backend_driver = cfg.CONF['service:agent'].backend_driver
         self.backend = agent_backend.get_backend(backend_driver, self)
+        self.heartbeat = heartbeat_emitter.get_heartbeat_emitter(
+            self.service_name)
 
     def start(self):
         super(Service, self).start()
         self.dns_service.start()
         self.backend.start()
+        self.heartbeat.start()
 
     def stop(self, graceful=True):
+        self.heartbeat.stop()
         self.dns_service.stop()
         self.backend.stop()
         super(Service, self).stop(graceful)
