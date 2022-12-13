@@ -3,7 +3,7 @@ export UPPER_CONSTRAINTS_FILE=https://raw.githubusercontent.com/sapcc/requiremen
 apt-get update && \
 apt-get install -y build-essential python3-pip python3-dev git libpcre++-dev gettext && \
 pip install -U pip && \
-pip install tox "six>=1.14.0" && \
+pip install "tox<4.0" "six>=1.14.0" && \
 git clone -b stable/xena-m3 --single-branch https://github.com/sapcc/designate.git --depth=1 && \
 cd designate && \
 tox -e py38
