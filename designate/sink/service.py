@@ -19,6 +19,7 @@ from oslo_log import log as logging
 import oslo_messaging as messaging
 
 from designate import notification_handler
+from designate import heartbeat_emitter
 from designate import rpc
 from designate import service
 
@@ -36,6 +37,8 @@ class Service(service.Service):
         self._server = None
         self.handlers = self._init_extensions()
         self.subscribers = self._get_subscribers()
+        self.heartbeat = heartbeat_emitter.get_heartbeat_emitter(
+            self.service_name)
 
     @property
     def service_name(self):
@@ -78,8 +81,10 @@ class Service(service.Service):
                 pool=cfg.CONF['service:sink'].listener_pool_name
             )
             self._server.start()
+        self.heartbeat.start()
 
     def stop(self, graceful=True):
+        self.heartbeat.stop()
         # Try to shut the connection down, but if we get any sort of
         # errors, go ahead and ignore them.. as we're shutting down anyway
         try:

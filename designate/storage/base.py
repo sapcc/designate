@@ -843,3 +843,12 @@ class Storage(DriverPlugin, metaclass=abc.ABCMeta):
         :param context: RPC Context.
         :param service_status: Set the status for a service.
         """
+
+    @abc.abstractmethod
+    def delete_service_status(self, context, service_status):
+        """
+        Delete the Service.
+
+        :param context: RPC Context.
+        :param service_status: Service status object for delete
+        """

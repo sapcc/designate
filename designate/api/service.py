@@ -18,6 +18,7 @@ from oslo_log import log as logging
 from paste import deploy
 
 from designate import exceptions
+from designate import heartbeat_emitter
 from designate import service
 from designate import utils
 
@@ -31,11 +32,15 @@ class Service(service.WSGIService):
             self.service_name,
             cfg.CONF['service:api'].listen,
         )
+        self.heartbeat = heartbeat_emitter.get_heartbeat_emitter(
+            self.service_name)
 
     def start(self):
         super(Service, self).start()
+        self.heartbeat.start()
 
     def stop(self, graceful=True):
+        self.heartbeat.stop()
         super(Service, self).stop(graceful)
 
     @property

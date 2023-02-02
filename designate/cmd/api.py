@@ -20,7 +20,6 @@ from oslo_log import log as logging
 from oslo_reports import guru_meditation_report as gmr
 
 import designate.conf
-from designate import heartbeat_emitter
 from designate import hookpoints
 from designate import service
 from designate import utils
@@ -41,7 +40,5 @@ def main():
     hookpoints.log_hook_setup()
 
     server = api_service.Service()
-    heartbeat = heartbeat_emitter.get_heartbeat_emitter(server.service_name)
     service.serve(server, workers=CONF['service:api'].workers)
-    heartbeat.start()
     service.wait()

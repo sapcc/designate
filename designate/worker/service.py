@@ -21,6 +21,7 @@ import oslo_messaging as messaging
 
 from designate import backend
 from designate import exceptions
+from designate import heartbeat_emitter
 from designate import rpc
 from designate import service
 from designate import storage
@@ -57,6 +58,9 @@ class Service(service.RPCService):
             self.service_name, cfg.CONF['service:worker'].topic,
             threads=cfg.CONF['service:worker'].threads,
         )
+
+        self.heartbeat = heartbeat_emitter.get_heartbeat_emitter(
+            self.service_name)
 
     @property
     def central_api(self):
@@ -136,9 +140,11 @@ class Service(service.RPCService):
 
     def start(self):
         super(Service, self).start()
+        self.heartbeat.start()
         LOG.info('Started worker')
 
     def stop(self, graceful=True):
+        self.heartbeat.stop()
         super(Service, self).stop(graceful)
 
     def _do_zone_action(self, context, zone, zone_params=None):

@@ -516,3 +516,7 @@ class CentralAPI(object):
     def update_service_status(self, context, service_status):
         self.client.cast(context, 'update_service_status',
                          service_status=service_status)
+
+    def delete_service_status(self, context, service_status):
+        self.client.cast(context, 'delete_service_status',
+                         service_status=service_status)

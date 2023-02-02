@@ -17,6 +17,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 
 from designate import dnsutils
+from designate import heartbeat_emitter
 from designate import service
 from designate import storage
 from designate import utils
@@ -49,12 +50,16 @@ class Service(service.RPCService):
             cfg.CONF['service:mdns'].tcp_backlog,
             cfg.CONF['service:mdns'].tcp_recv_timeout,
         )
+        self.heartbeat = heartbeat_emitter.get_heartbeat_emitter(
+            self.service_name)
 
     def start(self):
         super(Service, self).start()
         self.dns_service.start()
+        self.heartbeat.start()
 
     def stop(self, graceful=True):
+        self.heartbeat.stop()
         self.dns_service.stop()
         super(Service, self).stop(graceful)
 

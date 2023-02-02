@@ -37,6 +37,7 @@ from designate import context as dcontext
 from designate import coordination
 from designate import exceptions
 from designate import dnsutils
+from designate import heartbeat_emitter
 from designate import network_api
 from designate import notifications
 from designate import objects
@@ -203,6 +204,9 @@ class Service(service.RPCService):
         )
 
         self.network_api = network_api.get_network_api(cfg.CONF.network_api)
+        self.heartbeat = heartbeat_emitter.get_heartbeat_emitter(
+            self.service_name,
+            rpc_api=self)
 
     @property
     def scheduler(self):
@@ -238,8 +242,10 @@ class Service(service.RPCService):
 
         super(Service, self).start()
         self.coordination.start()
+        self.heartbeat.start()
 
     def stop(self, graceful=True):
+        self.heartbeat.stop()
         self.coordination.stop()
         super(Service, self).stop(graceful)
 
@@ -3220,3 +3226,30 @@ class Service(service.RPCService):
             )
             return self.storage.create_service_status(
                 context, service_status)
+
+    @rpc.expected_exceptions()
+    def delete_service_status(self, context, service_status):
+        policy.check('delete_service_status', context)
+
+        criterion = {
+            "service_name": service_status.service_name,
+            "hostname": service_status.hostname
+        }
+
+        if service_status.obj_attr_is_set('id'):
+            criterion["id"] = service_status.id
+        try:
+            db_status = self.storage.find_service_status(
+                context, criterion)
+            db_status.update(dict(service_status))
+
+            return self.storage.delete_service_status(context, db_status)
+        except exceptions.ServiceStatusNotFound:
+            LOG.warning(
+                "Deleting service status entry for %(service_name)s "
+                "at %(hostname)s",
+                {
+                    'service_name': service_status.service_name,
+                    'hostname': service_status.hostname
+                }
+            )
