@@ -53,10 +53,12 @@ class MdnsServiceTest(oslotest.base.BaseTestCase):
 
     def test_service_stop(self):
         self.service.dns_service.stop = mock.Mock()
+        self.service.heartbeat.stop = mock.Mock()
 
         self.service.stop()
 
         self.assertTrue(self.service.dns_service.stop.called)
+        self.assertTrue(self.service.heartbeat.stop.called)
 
         self.assertIn('Stopping mdns service', self.stdlog.logger.output)
 

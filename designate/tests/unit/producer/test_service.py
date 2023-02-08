@@ -67,10 +67,12 @@ class ProducerTest(oslotest.base.BaseTestCase):
 
     def test_service_stop(self):
         self.service.coordination.stop = mock.Mock()
+        self.service.heartbeat.stop = mock.Mock()
 
         self.service.stop()
 
         self.assertTrue(self.service.coordination.stop.called)
+        self.assertTrue(self.service.heartbeat.stop.called)
 
         self.assertIn('Stopping producer service', self.stdlog.logger.output)
 
