@@ -1661,7 +1661,7 @@ class Service(service.RPCService):
             'zone_shared': zone.shared,
             'recordset_id': recordset.obj_get_original_value('id'),
             'zone_name': zone.name,
-            'tenant_id': zone.tenant_id
+            'tenant_id': context.project_id if zone.shared else zone.tenant_id,
         }
 
         recordset_type = recordset.obj_get_original_value('type')
