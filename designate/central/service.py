@@ -2747,6 +2747,19 @@ class Service(service.RPCService):
         if zone.action == 'DELETE':
             raise exceptions.BadRequest('Can not transfer a deleting zone')
 
+        # Find out if the zone is shared
+        shared_zones = self.find_shared_zones(
+            context,
+            criterion={
+                "zone_id": zone.id
+            }
+        )
+        for share in shared_zones:
+            # Don't allow transfer to project where zone shared to
+            if zone_transfer_request.target_tenant_id == share.target_tenant_id:
+                raise exceptions.BadRequest('Can not transfer a zone to a '
+                                            'project where zone is shared to')
+
         target = {
             'tenant_id': zone.tenant_id,
             'zone_shared': zone.shared,
@@ -2891,7 +2904,22 @@ class Service(service.RPCService):
                                      zone_transfer_accept.tenant_id)
 
             zone.tenant_id = zone_transfer_accept.tenant_id
-            self.storage.update_zone(elevated_context, zone)
+
+            self.storage.update_zone(elevated_context,
+                                     zone,
+                                     **original_values)
+
+            # Update all shares if zone is shared
+            shared_zones = self.find_shared_zones(
+                elevated_context,
+                criterion={
+                    "zone_id": zone.id
+                }
+            )
+            for share in shared_zones:
+                # Update shares to the new tenant accepted the transfer
+                share.tenant_id = zone_transfer_accept.tenant_id
+                self.storage.update_zone_share(elevated_context, share)
 
         except Exception:
             created_zone_transfer_accept.status = 'ERROR'
