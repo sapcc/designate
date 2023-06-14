@@ -18,7 +18,7 @@ import time
 from oslo_log import log as logging
 from oslo_utils.secretutils import md5
 from sqlalchemy import select, distinct, func, outerjoin
-from sqlalchemy.sql.expression import or_
+from sqlalchemy.sql.expression import or_, and_
 
 from designate import exceptions
 from designate import objects
@@ -303,7 +303,7 @@ class SQLAlchemyStorage(sqlalchemy_base.SQLAlchemy, storage_base.Storage):
         zone = self._find_zones(context, criterion, one=True)
         return zone
 
-    def update_zone(self, context, zone):
+    def update_zone(self, context, zone, **kwargs):
         tenant_id_changed = False
         if 'tenant_id' in zone.obj_what_changed():
             tenant_id_changed = True
@@ -430,12 +430,21 @@ class SQLAlchemyStorage(sqlalchemy_base.SQLAlchemy, storage_base.Storage):
                     self.delete_recordset(context, i)
 
         if tenant_id_changed:
+            old_tenant_id = kwargs.get('tenant_id')
+            LOG.debug('Updating zone tenant_id. Previous tenant_id: %s',
+                      old_tenant_id)
+
+            # in case of shared zone transfer we need to keep recordset
+            # ownership in the tenants where zone is shared to:
             recordsets_query = tables.recordsets.update().\
-                where(tables.recordsets.c.zone_id == zone.id)\
+                where(and_(tables.recordsets.c.zone_id == zone.id,
+                      tables.recordsets.c.tenant_id == old_tenant_id))\
                 .values({'tenant_id': zone.tenant_id})
 
+            # also keep ownership of records to where the zone is shared:
             records_query = tables.records.update().\
-                where(tables.records.c.zone_id == zone.id).\
+                where(and_(tables.records.c.zone_id == zone.id,
+                      tables.records.c.tenant_id == old_tenant_id)).\
                 values({'tenant_id': zone.tenant_id})
 
             self.session.execute(records_query)
@@ -590,6 +599,20 @@ class SQLAlchemyStorage(sqlalchemy_base.SQLAlchemy, storage_base.Storage):
         return self._find_shared_zones(
             context, {'id': shared_zone_id}, one=True
         )
+
+    def update_zone_share(self, context, share):
+        query = (
+            tables.shared_zones.update().\
+                where(tables.shared_zones.c.id == share.id)
+        )
+
+        LOG.debug("Updating zone share: %s", share)
+        updated_share = self._update(
+            context, tables.shared_zones, share,
+            exceptions.DuplicateSharedZone, exceptions.SharedZoneNotFound,
+            ['zone_id'], query=query)
+
+        return updated_share
 
     # Zone attribute methods
     def _find_zone_attributes(self, context, criterion, one=False,
