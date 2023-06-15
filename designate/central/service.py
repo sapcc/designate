@@ -1323,6 +1323,9 @@ class Service(service.RPCService):
 
         if zone.shared:
             raise exceptions.Forbidden("Only zone owner can share zone.")
+        elif zone.tenant_id == target['target_tenant_id']:
+            raise exceptions.Forbidden("Cannot share the zone into the "
+                                       "same project where zone is.")
 
         shared_zone['tenant_id'] = context.project_id
         shared_zone = self.storage.share_zone(context, shared_zone)
@@ -2904,6 +2907,10 @@ class Service(service.RPCService):
                                      zone_transfer_accept.tenant_id)
 
             zone.tenant_id = zone_transfer_accept.tenant_id
+
+            # Previous tenant_id is needed to handle shared zone records
+            old_tenant = zone.obj_get_original_value('tenant_id')
+            original_values = {'tenant_id': old_tenant}
 
             self.storage.update_zone(elevated_context,
                                      zone,

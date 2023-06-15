@@ -3080,8 +3080,10 @@ class StorageTestCase(object):
 
         updated_zone.tenant_id = tenant_2_context.project_id
 
+        original_values = {'tenant_id': '1'}
+
         self.storage.update_zone(
-            admin_context, updated_zone)
+            admin_context, updated_zone, **original_values)
 
         saved_zone = self.storage.get_zone(
             admin_context, zone.id)

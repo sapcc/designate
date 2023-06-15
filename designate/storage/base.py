@@ -267,7 +267,7 @@ class Storage(DriverPlugin, metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def update_zone(self, context, zone):
+    def update_zone(self, context, zone, **kwargs):
         """
         Update a Zone
 
