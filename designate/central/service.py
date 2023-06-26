@@ -1359,10 +1359,10 @@ class Service(service.RPCService):
                 'before unsharing this zone'
             )
 
-        # Prevent unsharing of a zone which has recordsets in other tenants
+        # Prevent unsharing of a zone which has recordsets in target tenant
         criterion = {
             'zone_id': shared_zone.zone_id,
-            'tenant_id': "!%s" % shared_zone.tenant_id,
+            'tenant_id': shared_zone.target_tenant_id,
         }
 
         # Look for child zones across all tenants with elevated context
