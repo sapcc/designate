@@ -1486,6 +1486,10 @@ class Service(service.RPCService):
         if zone.action == 'DELETE':
             raise exceptions.BadRequest('Can not update a deleting zone')
 
+        if '_' in recordset.name:
+            raise exceptions.BadRequest(
+                'record name should not contain underscore')
+
         target = {
             'zone_id': zone_id,
             'zone_name': zone.name,

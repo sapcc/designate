@@ -1492,6 +1492,22 @@ class CentralServiceTest(CentralTestCase):
 
         self.assertEqual(exceptions.InvalidRecordSetLocation, exc.exc_info[0])
 
+    def test_create_invalid_recordset_name(self):
+        zone = self.create_zone()
+
+        values = dict(
+            name='ww_w.%s' % zone['name'],
+            type='A'
+        )
+
+        exc = self.assertRaises(rpc_dispatcher.ExpectedException,
+                                self.central_service.create_recordset,
+                                self.admin_context,
+                                zone['id'],
+                                recordset=objects.RecordSet.from_dict(values))
+
+        self.assertEqual(exceptions.BadRequest, exc.exc_info[0])
+
     def test_create_invalid_recordset_location_cname_sharing(self):
         zone = self.create_zone()
         expected = self.create_recordset(zone)
