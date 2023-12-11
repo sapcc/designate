@@ -66,8 +66,9 @@ class CentralAPI(object):
         6.2 - Changed 'find_recordsets' method args
         6.3 - Add methods for shared zones
         6.4 - Add Zone move method
+        6.5 - Add increment_zone_serial
     """
-    RPC_API_VERSION = '6.4'
+    RPC_API_VERSION = '6.5'
 
     # This allows us to mark some methods as not logged.
     # This can be for a few reasons - some methods my not actually call over
@@ -80,7 +81,7 @@ class CentralAPI(object):
 
         target = messaging.Target(topic=self.topic,
                                   version=self.RPC_API_VERSION)
-        self.client = rpc.get_client(target, version_cap='6.4')
+        self.client = rpc.get_client(target, version_cap='6.5')
 
     @classmethod
     def get_instance(cls):
@@ -146,6 +147,9 @@ class CentralAPI(object):
         return self.client.call(context, 'count_tenants')
 
     # Zone Methods
+    def increment_zone_serial(self, context, zone):
+        return self.client.call(context, 'increment_zone_serial', zone=zone)
+
     def create_zone(self, context, zone):
         return self.client.call(context, 'create_zone', zone=zone)
 

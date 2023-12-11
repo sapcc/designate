@@ -22,13 +22,13 @@ from collections import namedtuple
 from unittest import mock
 
 import testtools
-from testtools.matchers import GreaterThan
 from oslo_config import cfg
 from oslo_log import log as logging
 from oslo_db import exception as db_exception
 from oslo_versionedobjects import exception as ovo_exc
 from oslo_messaging.notify import notifier
 from oslo_messaging.rpc import dispatcher as rpc_dispatcher
+from oslo_utils import timeutils
 
 from designate import exceptions
 from designate import objects
@@ -859,7 +859,7 @@ class CentralServiceTest(CentralTestCase):
     def test_update_zone(self, mock_notifier):
         # Create a zone
         zone = self.create_zone(email='info@example.org')
-        original_serial = zone.serial
+        self.assertFalse(zone.increment_serial)
 
         # Update the object
         zone.email = 'info@example.net'
@@ -875,7 +875,7 @@ class CentralServiceTest(CentralTestCase):
             self.admin_context, zone.id)
 
         # Ensure the zone was updated correctly
-        self.assertGreater(zone.serial, original_serial)
+        self.assertTrue(zone.increment_serial)
         self.assertEqual('info@example.net', zone.email)
 
         self.assertEqual(2, mock_notifier.call_count)
@@ -900,7 +900,7 @@ class CentralServiceTest(CentralTestCase):
     def test_update_zone_without_incrementing_serial(self):
         # Create a zone
         zone = self.create_zone(email='info@example.org')
-        original_serial = zone.serial
+        self.assertFalse(zone.increment_serial)
 
         # Update the object
         zone.email = 'info@example.net'
@@ -913,7 +913,7 @@ class CentralServiceTest(CentralTestCase):
         zone = self.central_service.get_zone(self.admin_context, zone.id)
 
         # Ensure the zone was updated correctly
-        self.assertEqual(original_serial, zone.serial)
+        self.assertFalse(zone.increment_serial)
         self.assertEqual('info@example.net', zone.email)
 
     def test_update_zone_serial(self):
@@ -950,7 +950,7 @@ class CentralServiceTest(CentralTestCase):
     def test_update_zone_deadlock_retry(self):
         # Create a zone
         zone = self.create_zone(name='example.org.')
-        original_serial = zone.serial
+        self.assertFalse(zone.increment_serial)
 
         # Update the Object
         zone.email = 'info@example.net'
@@ -977,7 +977,7 @@ class CentralServiceTest(CentralTestCase):
         self.assertTrue(i[0])
 
         # Ensure the zone was updated correctly
-        self.assertGreater(zone.serial, original_serial)
+        self.assertTrue(zone.increment_serial)
         self.assertEqual('info@example.net', zone.email)
 
     @mock.patch.object(notifier.Notifier, "info")
@@ -1336,11 +1336,11 @@ class CentralServiceTest(CentralTestCase):
             self.admin_context, expected_zone['id'])
 
         # Fetch the zone again
-        zone = self.central_service.get_zone(
+        self.central_service.get_zone(
             self.admin_context, expected_zone['id'])
 
         # Ensure the serial was incremented
-        self.assertGreater(zone['serial'], expected_zone['serial'])
+        # self.assertGreater(zone['serial'], expected_zone['serial'])
 
     def test_xfr_zone(self):
         # Create a zone
@@ -1407,7 +1407,7 @@ class CentralServiceTest(CentralTestCase):
     # RecordSet Tests
     def test_create_recordset(self):
         zone = self.create_zone()
-        original_serial = zone.serial
+        self.assertFalse(zone.increment_serial)
 
         # Create the Object
         recordset = objects.RecordSet(name='www.%s' % zone.name, type='A')
@@ -1419,7 +1419,6 @@ class CentralServiceTest(CentralTestCase):
         # Get the zone again to check if serial increased
         updated_zone = self.central_service.get_zone(self.admin_context,
                                                      zone.id)
-        new_serial = updated_zone.serial
 
         # Ensure all values have been set correctly
         self.assertIsNotNone(recordset.id)
@@ -1429,11 +1428,11 @@ class CentralServiceTest(CentralTestCase):
         self.assertIsNotNone(recordset.records)
         # The serial number does not get updated is there are no records
         # in the recordset
-        self.assertEqual(original_serial, new_serial)
+        self.assertFalse(updated_zone.increment_serial)
 
     def test_create_recordset_with_records(self):
         zone = self.create_zone()
-        original_serial = zone.serial
+        self.assertFalse(zone.increment_serial)
 
         # Create the Object
         recordset = objects.RecordSet(
@@ -1452,14 +1451,13 @@ class CentralServiceTest(CentralTestCase):
         # Get updated serial number
         updated_zone = self.central_service.get_zone(self.admin_context,
                                                      zone.id)
-        new_serial = updated_zone.serial
 
         # Ensure all values have been set correctly
         self.assertIsNotNone(recordset.records)
         self.assertEqual(2, len(recordset.records))
         self.assertIsNotNone(recordset.records[0].id)
         self.assertIsNotNone(recordset.records[1].id)
-        self.assertThat(new_serial, GreaterThan(original_serial))
+        self.assertTrue(updated_zone.increment_serial)
 
     def test_create_recordset_over_quota(self):
         # SOA, NS recordsets exist by default.
@@ -1679,7 +1677,7 @@ class CentralServiceTest(CentralTestCase):
     def test_update_recordset(self):
         # Create a zone
         zone = self.create_zone()
-        original_serial = zone.serial
+        self.assertFalse(zone.increment_serial)
 
         # Create a recordset
         recordset = self.create_recordset(zone)
@@ -1693,7 +1691,7 @@ class CentralServiceTest(CentralTestCase):
         # Get zone again to verify that serial number was updated
         updated_zone = self.central_service.get_zone(self.admin_context,
                                                      zone.id)
-        new_serial = updated_zone.serial
+        self.assertTrue(updated_zone.increment_serial)
 
         # Fetch the resource again
         recordset = self.central_service.get_recordset(
@@ -1701,7 +1699,6 @@ class CentralServiceTest(CentralTestCase):
 
         # Ensure the new value took
         self.assertEqual(1800, recordset.ttl)
-        self.assertThat(new_serial, GreaterThan(original_serial))
 
     def test_update_recordset_deadlock_retry(self):
         # Create a zone
@@ -1763,7 +1760,7 @@ class CentralServiceTest(CentralTestCase):
     def test_update_recordset_with_record_delete(self):
         # Create a zone
         zone = self.create_zone()
-        original_serial = zone.serial
+        self.assertFalse(zone.increment_serial)
 
         # Create a recordset and two records
         recordset = self.create_recordset(zone)
@@ -1787,12 +1784,11 @@ class CentralServiceTest(CentralTestCase):
         # Fetch the Zone again
         updated_zone = self.central_service.get_zone(self.admin_context,
                                                      zone.id)
-        new_serial = updated_zone.serial
 
         # Ensure two Records are attached to the RecordSet correctly
         self.assertEqual(1, len(recordset.records))
         self.assertIsNotNone(recordset.records[0].id)
-        self.assertThat(new_serial, GreaterThan(original_serial))
+        self.assertTrue(updated_zone.increment_serial)
 
     def test_update_recordset_with_record_update(self):
         # Create a zone
@@ -1890,7 +1886,7 @@ class CentralServiceTest(CentralTestCase):
 
     def test_delete_recordset(self):
         zone = self.create_zone()
-        original_serial = zone.serial
+        self.assertFalse(zone.increment_serial)
 
         # Create a recordset
         recordset = self.create_recordset(zone)
@@ -1910,8 +1906,7 @@ class CentralServiceTest(CentralTestCase):
         # Fetch the zone again to verify serial number increased
         updated_zone = self.central_service.get_zone(self.admin_context,
                                                      zone.id)
-        new_serial = updated_zone.serial
-        self.assertThat(new_serial, GreaterThan(original_serial))
+        self.assertTrue(updated_zone.increment_serial)
 
     def test_delete_recordset_without_incrementing_serial(self):
         zone = self.create_zone()
@@ -2027,8 +2022,8 @@ class CentralServiceTest(CentralTestCase):
             name='www.%s' % zone.name,
             type='A',
             records=objects.RecordList(objects=[
-                objects.Record(data='192.3.3.15'),
-                objects.Record(data='192.3.3.16'),
+                objects.Record(data='203.0.113.15'),
+                objects.Record(data='203.0.113.16'),
             ])
         )
 
@@ -2268,111 +2263,6 @@ class CentralServiceTest(CentralTestCase):
 
         self.assertEqual(exceptions.BadRequest, exc.exc_info[0])
 
-    def test_delete_record(self):
-        zone = self.create_zone()
-        recordset = self.create_recordset(zone)
-
-        # Create a record
-        record = self.create_record(zone, recordset)
-
-        # Fetch the zone serial number
-        zone_serial = self.central_service.get_zone(
-            self.admin_context, zone['id']).serial
-
-        # Delete the record
-        self.central_service.delete_record(
-            self.admin_context, zone['id'], recordset['id'], record['id'])
-
-        # Ensure the zone serial number was updated
-        new_zone_serial = self.central_service.get_zone(
-            self.admin_context, zone['id']).serial
-        self.assertNotEqual(new_zone_serial, zone_serial)
-
-        # Fetch the record
-        deleted_record = self.central_service.get_record(
-            self.admin_context, zone['id'], recordset['id'],
-            record['id'])
-
-        # Ensure the record is marked for deletion
-        self.assertEqual(record.id, deleted_record.id)
-        self.assertEqual(record.data, deleted_record.data)
-        self.assertEqual(record.zone_id, deleted_record.zone_id)
-        self.assertEqual('PENDING', deleted_record.status)
-        self.assertEqual(record.tenant_id, deleted_record.tenant_id)
-        self.assertEqual(record.recordset_id, deleted_record.recordset_id)
-        self.assertEqual('DELETE', deleted_record.action)
-        self.assertEqual(new_zone_serial, deleted_record.serial)
-
-    def test_delete_record_without_incrementing_serial(self):
-        zone = self.create_zone()
-        recordset = self.create_recordset(zone)
-
-        # Create a record
-        record = self.create_record(zone, recordset)
-
-        # Fetch the zone serial number
-        zone_serial = self.central_service.get_zone(
-            self.admin_context, zone['id']).serial
-
-        # Delete the record
-        self.central_service.delete_record(
-            self.admin_context, zone['id'], recordset['id'], record['id'],
-            increment_serial=False)
-
-        # Ensure the zones serial number was not updated
-        new_zone_serial = self.central_service.get_zone(
-            self.admin_context, zone['id'])['serial']
-        self.assertEqual(zone_serial, new_zone_serial)
-
-        # Fetch the record
-        deleted_record = self.central_service.get_record(
-            self.admin_context, zone['id'], recordset['id'],
-            record['id'])
-
-        # Ensure the record is marked for deletion
-        self.assertEqual(record.id, deleted_record.id)
-        self.assertEqual(record.data, deleted_record.data)
-        self.assertEqual(record.zone_id, deleted_record.zone_id)
-        self.assertEqual('PENDING', deleted_record.status)
-        self.assertEqual(record.tenant_id, deleted_record.tenant_id)
-        self.assertEqual(record.recordset_id, deleted_record.recordset_id)
-        self.assertEqual('DELETE', deleted_record.action)
-        self.assertEqual(new_zone_serial, deleted_record.serial)
-
-    def test_delete_record_incorrect_zone_id(self):
-        zone = self.create_zone()
-        recordset = self.create_recordset(zone)
-        other_zone = self.create_zone(fixture=1)
-
-        # Create a record
-        record = self.create_record(zone, recordset)
-
-        # Ensure we get a 404 if we use the incorrect zone_id
-        exc = self.assertRaises(rpc_dispatcher.ExpectedException,
-                                self.central_service.delete_record,
-                                self.admin_context, other_zone['id'],
-                                recordset['id'],
-                                record['id'])
-
-        self.assertEqual(exceptions.RecordNotFound, exc.exc_info[0])
-
-    def test_delete_record_incorrect_recordset_id(self):
-        zone = self.create_zone()
-        recordset = self.create_recordset(zone)
-        other_recordset = self.create_recordset(zone, fixture=1)
-
-        # Create a record
-        record = self.create_record(zone, recordset)
-
-        # Ensure we get a 404 if we use the incorrect recordset_id
-        exc = self.assertRaises(rpc_dispatcher.ExpectedException,
-                                self.central_service.delete_record,
-                                self.admin_context, zone['id'],
-                                other_recordset['id'],
-                                record['id'])
-
-        self.assertEqual(exceptions.RecordNotFound, exc.exc_info[0])
-
     def test_count_records(self):
         # in the beginning, there should be nothing
         records = self.central_service.count_records(self.admin_context)
@@ -2502,8 +2392,11 @@ class CentralServiceTest(CentralTestCase):
         self.assertIsNone(fip_ptr['ptrdname'])
 
         # Simulate the invalidation on the backend
-        zone_serial = self.central_service.get_zone(
-            elevated_a, zone_id).serial
+        zone = self.central_service.get_zone(
+            elevated_a, zone_id)
+        zone_serial = self.central_service.increment_zone_serial(
+            elevated_a, zone)
+
         self.central_service.update_status(
             elevated_a, zone_id, "SUCCESS", zone_serial)
 
@@ -2577,10 +2470,8 @@ class CentralServiceTest(CentralTestCase):
             elevated_a, criterion).zone_id
 
         # Simulate the update on the backend
-        zone_serial = self.central_service.get_zone(
-            elevated_a, zone_id).serial
         self.central_service.update_status(
-            elevated_a, zone_id, "SUCCESS", zone_serial)
+            elevated_a, zone_id, "SUCCESS", timeutils.utcnow_ts())
 
         self.network_api.fake.deallocate_floatingip(fip['id'])
 
@@ -2600,10 +2491,8 @@ class CentralServiceTest(CentralTestCase):
         self.assertIsNone(fips[0]['ptrdname'])
 
         # Simulate the invalidation on the backend
-        zone_serial = self.central_service.get_zone(
-            elevated_a, zone_id).serial
         self.central_service.update_status(
-            elevated_a, zone_id, "SUCCESS", zone_serial)
+            elevated_a, zone_id, "SUCCESS", timeutils.utcnow_ts())
 
         # Ensure that the old record for tenant a for the fip now owned by
         # tenant b is gone

@@ -19,11 +19,11 @@ from collections import namedtuple
 import dns
 from oslo_config import cfg
 from oslo_log import log as logging
+from oslo_utils import timeutils
 
 from designate.worker import utils as wutils
 from designate.worker.tasks import base
 from designate import exceptions
-from designate import utils
 
 LOG = logging.getLogger(__name__)
 CONF = cfg.CONF
@@ -553,11 +553,10 @@ class RecoverShard(base.Task):
         # Include things that have been hanging out in PENDING
         # status for longer than they should
         # Generate the current serial, will provide a UTC Unix TS.
-        current = utils.increment_serial()
         stale_criterion = {
             'shard': "BETWEEN %s,%s" % (self.begin_shard, self.end_shard),
             'status': 'PENDING',
-            'serial': "<%s" % (current - self.max_prop_time)
+            'serial': "<%s" % (timeutils.utcnow_ts() - self.max_prop_time)
         }
 
         stale_zones = self.storage.find_zones(self.context, stale_criterion)

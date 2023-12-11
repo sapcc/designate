@@ -206,7 +206,7 @@ class SQLAlchemy(object, metaclass=abc.ABCMeta):
         # Ensure the Object is valid
         # obj.validate()
 
-        values = obj.obj_get_changes()
+        values = dict(obj)
 
         if skip_values is not None:
             for skip_value in skip_values:
@@ -219,7 +219,7 @@ class SQLAlchemy(object, metaclass=abc.ABCMeta):
         query = table.insert()
 
         try:
-            resultproxy = self.session.execute(query, [dict(values)])
+            resultproxy = self.session.execute(query, [values])
         except oslo_db_exception.DBDuplicateEntry:
             msg = "Duplicate %s" % obj.obj_name()
             raise exc_dup(msg)
