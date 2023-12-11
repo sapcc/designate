@@ -26,7 +26,6 @@ from oslo_config import cfg
 from oslo_concurrency import processutils
 from oslo_log import log as logging
 from oslo_serialization import jsonutils
-from oslo_utils import timeutils
 from oslo_utils import uuidutils
 from oslo_utils.netutils import is_valid_ipv6
 
@@ -132,16 +131,6 @@ def execute(*cmd, **kw):
     run_as_root = kw.pop('run_as_root', True)
     return processutils.execute(*cmd, run_as_root=run_as_root,
                                 root_helper=root_helper, **kw)
-
-
-def increment_serial(serial=0):
-    # This provides for *roughly* unix timestamp based serial numbers
-    new_serial = timeutils.utcnow_ts()
-
-    if new_serial <= serial:
-        new_serial = serial + 1
-
-    return new_serial
 
 
 def deep_dict_merge(a, b):

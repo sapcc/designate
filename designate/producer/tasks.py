@@ -231,7 +231,6 @@ class PeriodicGenerateDelayedNotifyTask(PeriodicTask):
         Call Worker to emit NOTIFY transactions,
         Reset the flag.
         """
-        pstart, pend = self._my_range()
 
         ctxt = context.DesignateContext.get_admin_context()
         ctxt.all_tenants = True
@@ -241,6 +240,7 @@ class PeriodicGenerateDelayedNotifyTask(PeriodicTask):
         # There's an index on delayed_notify.
         criterion = self._filter_between('shard')
         criterion['delayed_notify'] = True
+        criterion['increment_serial'] = False
         zones = self.central_api.find_zones(
             ctxt,
             criterion,
@@ -249,19 +249,69 @@ class PeriodicGenerateDelayedNotifyTask(PeriodicTask):
             sort_dir='asc',
         )
 
-        LOG.debug(
-            "Performing delayed NOTIFY for %(start)s to %(end)s: %(n)d",
-            {
-                'start': pstart,
-                'end': pend,
-                'n': len(zones)
-            }
-        )
-
         for zone in zones:
+            if zone.action == 'NONE':
+                zone.action = 'UPDATE'
+                zone.status = 'PENDING'
+            elif zone.action == 'DELETE':
+                LOG.debug(
+                    'Skipping delayed NOTIFY for %(id)s being DELETED',
+                    {
+                        'id': zone.id,
+                    }
+                )
+                continue
             self.zone_api.update_zone(ctxt, zone)
             zone.delayed_notify = False
             self.central_api.update_zone(ctxt, zone)
+
+
+class PeriodicIncrementSerialTask(PeriodicTask):
+    __plugin_name__ = 'increment_serial'
+
+    def __init__(self):
+        super(PeriodicIncrementSerialTask, self).__init__()
+
+    def __call__(self):
+        ctxt = context.DesignateContext.get_admin_context()
+        ctxt.all_tenants = True
+
+        # Select zones where "increment_serial" is set and starting from the
+        # oldest "updated_at".
+        # There's an index on increment_serial.
+        criterion = self._filter_between('shard')
+        criterion['increment_serial'] = True
+        zones = self.central_api.find_zones(
+            ctxt,
+            criterion,
+            limit=CONF[self.name].batch_size,
+            sort_key='updated_at',
+            sort_dir='asc',
+        )
+        for zone in zones:
+            if zone.action == 'DELETE':
+                LOG.debug(
+                    'Skipping increment serial for %(id)s being DELETED',
+                    {
+                        'id': zone.id,
+                    }
+                )
+                continue
+
+            serial = self.central_api.increment_zone_serial(ctxt, zone)
+            LOG.debug(
+                'Incremented serial for %(id)s to %(serial)d',
+                {
+                    'id': zone.id,
+                    'serial': serial,
+                }
+            )
+            if not zone.delayed_notify:
+                # Notify the backend.
+                if zone.action == 'NONE':
+                    zone.action = 'UPDATE'
+                    zone.status = 'PENDING'
+                self.worker_api.update_zone(ctxt, zone)
 
 
 class WorkerPeriodicRecovery(PeriodicTask):

@@ -179,6 +179,7 @@ class MockRecordSet(object):
     ttl = 1
     type = "PRIMARY"
     serial = 123
+    records = []
 
     def obj_attr_is_set(self, n):
         if n == 'records':
@@ -431,7 +432,9 @@ class CentralServiceTestCase(CentralBasic):
         central_service._is_valid_ttl = mock.Mock()
 
         central_service.storage.create_recordset = mock.Mock(return_value='rs')
-        central_service._update_zone_in_storage = mock.Mock()
+        central_service._update_zone_in_storage = mock.Mock(
+            return_value=Mockzone()
+        )
 
         recordset = mock.Mock()
         recordset.obj_attr_is_set.return_value = True
@@ -453,7 +456,9 @@ class CentralServiceTestCase(CentralBasic):
         self.service._is_valid_ttl = mock.Mock()
 
         self.service.storage.create_recordset = mock.Mock(return_value='rs')
-        self.service._update_zone_in_storage = mock.Mock()
+        self.service._update_zone_in_storage = mock.Mock(
+            return_value=Mockzone()
+        )
 
         # NOTE(thirose): Since this is a race condition we assume that
         #  we will hit it if we try to do the operations in a loop 100 times.
@@ -546,6 +551,7 @@ class CentralZoneTestCase(CentralBasic):
     record__id = 'b81ebcfb-6236-4424-b77f-2dd0179fa041'
     record__id_2 = 'c81ebcfb-6236-4424-b77f-2dd0179fa041'
     pool__id = '769ca3fc-5924-4a44-8c1f-7efbe52fbd59'
+    pool__id2 = '769ca3fc-5924-4a44-8c1f-7efbe52fbd49'
     recordset__id = '9c85d9b0-1e9d-4e99-aede-a06664f1af2e'
     recordset__id_2 = 'dc85d9b0-1e9d-4e99-aede-a06664f1af2e'
     recordset__id_3 = '2a94a9fe-30d1-4a15-9071-0bb21996d971'
@@ -1093,21 +1099,27 @@ class CentralZoneTestCase(CentralBasic):
         self.assertEqual(exceptions.BadRequest, exc.exc_info[0])
 
     def test_move_zone(self):
-        z = objects.Zone(tenant_id='1', name='example.com.', ttl=60)
-        z.pool_id = CentralZoneTestCase.pool__id
+        z = objects.Zone(
+            tenant_id='1',
+            name='example.com.',
+            ttl=60,
+            pool_id=CentralZoneTestCase.pool__id,
+            id=CentralZoneTestCase.zone__id
+        )
+        z.pool_id = CentralZoneTestCase.pool__id2
 
         self.service.storage.get_pool = mock.Mock(
             return_value=MockPool())
-        self.service._increment_zone_serial = mock.Mock(
-            return_value=RoObject(
-                name='example.com.', tenant_id='1',
-                type='PRIMARY', action='UPDATE',
-                pool_id=CentralZoneTestCase.pool__id,
+        self.service._update_zone_in_storage = mock.Mock(
+            return_value=RwObject(
+                name='example.com.', tenant_id='1', status='PENDING',
+                type='PRIMARY', action='UPDATE', refresh=20,
+                pool_id=CentralZoneTestCase.pool__id2,
             ))
-        zone = self.service._update_zone_in_storage(self.context, z)
+        zone = self.service.move_zone(self.context, z)
 
-        self.assertEqual(CentralZoneTestCase.pool__id, zone.pool_id)
-        self.assertEqual('UPDATE', zone.action)
+        self.assertEqual(CentralZoneTestCase.pool__id2, zone.pool_id)
+        self.assertEqual('CREATE', zone.action)
 
     def test_count_report(self):
         self.service.count_zones = mock.Mock(return_value=1)
@@ -1526,8 +1538,6 @@ class CentralZoneTestCase(CentralBasic):
             self.service.delete_recordset(self.context,
                 CentralZoneTestCase.zone__id_2,
                 CentralZoneTestCase.recordset__id)
-            self.assertTrue(
-                self.service.zone_api.update_zone.called)
 
         self.assertTrue(
             self.service._delete_recordset_in_storage.called)
@@ -1544,6 +1554,7 @@ class CentralZoneTestCase(CentralBasic):
                     action='',
                     status='',
                     serial=0,
+                    increment_serial=False,
                 )
             ])
         )
@@ -1553,7 +1564,7 @@ class CentralZoneTestCase(CentralBasic):
         self.assertEqual(1, len(rs.records))
         self.assertEqual('DELETE', rs.records[0].action)
         self.assertEqual('PENDING', rs.records[0].status)
-        self.assertEqual(1, rs.records[0].serial)
+        self.assertTrue(rs.records[0].serial, 1)
 
     def test_delete_recordset_in_storage_no_increment_serial(self):
         self.service._update_zone_in_storage = mock.Mock()

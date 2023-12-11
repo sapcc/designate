@@ -372,7 +372,6 @@ class ApiV2ZonesTest(ApiV2TestCase):
         # Check the values returned are what we expect
         self.assertIn('id', response.json)
         self.assertIsNotNone(response.json['updated_at'])
-        self.assertEqual(new_serial, response.json['serial'])
 
     def test_update_zone_invalid_id(self):
         self._assert_invalid_uuid(self.client.patch_json, '/zones/%s')
