@@ -17,6 +17,7 @@ from oslo_config import cfg
 from oslo_log import log as logging
 import oslo_messaging as messaging
 
+from designate import context
 from designate import coordination
 from designate import heartbeat_emitter
 from designate import quota
@@ -78,8 +79,15 @@ class Service(service.RPCService):
 
     def start(self):
         super(Service, self).start()
-        self.coordination.start()
+        ctxt = context.DesignateContext.get_admin_context()
+        try:
+            self.central_api.find_zones(ctxt, limit=1)
+            with open('/etc/designate/probe', 'w+') as f:
+                f.write('ready\n')
+        except Exception:
+            LOG.error("Failed to access db, some producer tasks will fail")
 
+        self.coordination.start()
         self._partitioner = coordination.Partitioner(
             self.coordination.coordinator, self.service_name,
             self.coordination.coordination_id.encode(), range(0, 4095)
