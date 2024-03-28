@@ -224,12 +224,13 @@ class Storage(DriverPlugin, metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def increment_serial(self, context, zone_id):
+    def increment_serial(self, context, zone_id, new_serial):
         """
         Increment serial of a Zone
 
         :param context: RPC Context.
         :param zone_id: ID of the Zone.
+        :param new_serial: Zone serial ID
         """
 
     @abc.abstractmethod

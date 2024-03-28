@@ -3549,3 +3549,71 @@ class CentralServiceTest(CentralTestCase):
                                 context, zone_import['id'])
 
         self.assertEqual(exceptions.ZoneImportNotFound, exc.exc_info[0])
+
+    def test_create_zone_serial_yyyymmddss(self):
+        serial = 2024080201
+        # Create a zone
+        zone = self.create_zone(email='info@example.org', serial=serial)
+        self.assertEqual(serial, self.central_service.get_zone(
+            self.admin_context, zone['id']).serial)
+
+    def test_create_zone_serial_unixtime(self):
+        serial = 1369550494
+        # Create a zone
+        zone = self.create_zone(email='info@example.org', serial=serial)
+        self.assertEqual(serial, self.central_service.get_zone(
+            self.admin_context, zone['id']).serial)
+
+    def test_create_zone_serial_number(self):
+        serial = 1234567
+        # Create a zone
+        zone = self.create_zone(email='info@example.org', serial=serial)
+        self.assertEqual(serial, self.central_service.get_zone(
+            self.admin_context, zone['id']).serial)
+
+    @mock.patch.object(notifier.Notifier, "info")
+    def test_update_zone_serial_to_yyyymmddss(self, mock_notifier):
+        serial = 2024080201
+        # Create a zone
+        zone = self.create_zone(email='info@example.org', serial=1)
+        # Update the object
+        zone.serial = serial
+
+        # Reset the mock to avoid the calls from the create_zone() call
+        mock_notifier.reset_mock()
+
+        # Perform the update
+        self.central_service.update_zone(self.admin_context, zone)
+        self.assertEqual(serial, self.central_service.get_zone(
+            self.admin_context, zone['id']).serial)
+
+    @mock.patch.object(notifier.Notifier, "info")
+    def test_update_zone_serial_to_unixtime(self, mock_notifier):
+        serial = 1708636627
+        # Create a zone
+        zone = self.create_zone(email='info@example.org', serial=1)
+        # Update the object
+        zone.serial = serial
+
+        # Reset the mock to avoid the calls from the create_zone() call
+        mock_notifier.reset_mock()
+
+        # Perform the update
+        self.central_service.update_zone(self.admin_context, zone)
+        self.assertEqual(serial, self.central_service.get_zone(
+            self.admin_context, zone['id']).serial)
+
+    @mock.patch.object(notifier.Notifier, "info")
+    def test_update_zone_serial_to_number(self, mock_notifier):
+        serial = 1234567
+        # Create a zone
+        zone = self.create_zone(email='info@example.org', serial=1)
+        # Update the object
+        zone.serial = serial
+        # Reset the mock to avoid the calls from the create_zone() call
+        mock_notifier.reset_mock()
+
+        # Perform the update
+        self.central_service.update_zone(self.admin_context, zone)
+        self.assertEqual(serial, self.central_service.get_zone(
+            self.admin_context, zone['id']).serial)
