@@ -667,20 +667,6 @@ class Service(service.RPCService):
         self.quota.limit_check(context, tenant_id,
                                recordset_records=len(recordset.records))
 
-    def _generate_record_serial(self, zone, record, increment_serial):
-        if not increment_serial:
-            record.serial = zone.serial
-        else:
-            current_time = timeutils.utcnow_ts()
-            if hasattr(record, 'serial') and record.serial:
-                if current_time > record.serial:
-                    record.serial = current_time
-                else:
-                    record.serial += 1
-            else:
-                record.serial = current_time
-        return record.serial
-
     # Misc Methods
     @rpc.expected_exceptions()
     def get_absolute_limits(self, context):
@@ -1564,9 +1550,10 @@ class Service(service.RPCService):
             for record in recordset.records:
                 record.action = 'CREATE'
                 record.status = 'PENDING'
-                record.serial = self._generate_record_serial(
-                    zone, record, increment_serial
-                )
+                if not increment_serial:
+                    record.serial = zone.serial
+                else:
+                    record.serial = timeutils.utcnow_ts()
 
         new_recordset = self.storage.create_recordset(context, zone.id,
                                                       recordset)
@@ -1723,9 +1710,10 @@ class Service(service.RPCService):
                     continue
                 record.action = 'UPDATE'
                 record.status = 'PENDING'
-                record.serial = self._generate_record_serial(
-                    zone, record, increment_serial
-                )
+                if not increment_serial:
+                    record.serial = zone.serial
+                else:
+                    record.serial = timeutils.utcnow_ts()
 
             # Ensure the tenant has enough zone record quotas to
             # create new records
@@ -1788,9 +1776,10 @@ class Service(service.RPCService):
             for record in recordset.records:
                 record.action = 'DELETE'
                 record.status = 'PENDING'
-                record.serial = self._generate_record_serial(
-                    zone, record, increment_serial
-                )
+                if not increment_serial:
+                    record.serial = zone.serial
+                else:
+                    record.serial = timeutils.utcnow_ts()
 
         # Update the recordset's action/status and then delete it
         self.storage.update_recordset(context, recordset)
