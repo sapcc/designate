@@ -174,8 +174,8 @@ class ZonesController(rest.RestController):
                 msg = "Changed email is not allowed."
                 raise exceptions.InvalidObject(msg)
 
-            increment_serial = zone.type == 'PRIMARY'
-
+            increment_serial = (zone.type == 'PRIMARY' and
+                                'serial' not in zone.obj_get_changes())
             zone = self.central_api.update_zone(
                 context, zone, increment_serial=increment_serial)
 
