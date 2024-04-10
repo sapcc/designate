@@ -872,7 +872,7 @@ class Service(service.RPCService):
     @transaction
     @synchronized_zone()
     def increment_zone_serial(self, context, zone):
-        if zone.created_at.timestamp() < zone.serial < timeutils.utcnow_ts():
+        if zone.created_at.timestamp() < zone.serial < zone.created_at.now().timestamp():
             zone.serial = self.storage.increment_serial(
                 context, zone.id, timeutils.utcnow_ts()
             )
