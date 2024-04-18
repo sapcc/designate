@@ -874,7 +874,7 @@ class Service(service.RPCService):
     def increment_zone_serial(self, context, zone):
         if zone.created_at.timestamp() < zone.serial < zone.created_at.now().timestamp():
             zone.serial = self.storage.increment_serial(
-                context, zone.id, timeutils.utcnow_ts()
+                context, zone.id, int(zone.created_at.now().timestamp())
             )
         else:
             zone.serial = self.storage.increment_serial(
