@@ -99,7 +99,7 @@ class Service(service.RPCService):
             self._partitioner.watch_partition_change(task.on_partition_change)
 
             interval = CONF[task.get_canonical_name()].interval
-            self.tg.add_timer(interval, task)
+            self.tg.add_timer_args(interval, task, stop_on_exception=False)
         self.heartbeat.start()
 
     def stop(self, graceful=True):
