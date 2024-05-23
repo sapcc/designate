@@ -380,10 +380,13 @@ class CentralAPI:
 
     # Zone Import Methods
     def create_zone_import(self, context, request_body,
-                           zone_attributes=None):
-        return self.client.call(context, 'create_zone_import',
-                                request_body=request_body,
-                                zone_attributes=zone_attributes)
+                           zone_attributes=None, force=False):
+        return self.client.call(
+            context, 'create_zone_import',
+            request_body=request_body,
+            zone_attributes=zone_attributes,
+            force=force,
+        )
 
     def find_zone_imports(self, context, criterion=None, marker=None,
                           limit=None, sort_key=None, sort_dir=None):

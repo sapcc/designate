@@ -2840,11 +2840,14 @@ class Service(service.RPCService):
     @rpc.expected_exceptions()
     @notification.notify_type('dns.zone_import.create')
     def create_zone_import(self, context, request_body,
-                           zone_attributes=None):
+                           zone_attributes=None, force=False):
         target = {constants.RBAC_PROJECT_ID: context.project_id,
                   'tenant_id': context.project_id}
 
-        policy.check('create_zone_import', context, target)
+        if force:
+            policy.check('create_force_zone_import', context, target)
+        else:
+            policy.check('create_zone_import', context, target)
 
         self._is_valid_project_id(context.project_id)
 
@@ -2868,13 +2871,13 @@ class Service(service.RPCService):
                                                               zone_import)
 
         self.tg.add_thread(self._import_zone, context, created_zone_import,
-                           request_body, zone_attributes)
+                           request_body, zone_attributes, force)
 
         return created_zone_import
 
     @rpc.expected_exceptions()
     def _import_zone(self, context, zone_import, request_body,
-                     zone_attributes=None):
+                     zone_attributes=None, force=False):
         zone = None
         try:
             dnspython_zone = dnszone.from_text(
@@ -2913,21 +2916,26 @@ class Service(service.RPCService):
             )
             zone_import.status = 'ERROR'
 
-        # If the zone import was valid, create the zone
+        # If the zone import was valid, create or update the zone
         if zone_import.status != 'ERROR':
             try:
-                zone = self.create_zone(context, zone)
-                zone_import.status = 'COMPLETE'
-                zone_import.zone_id = zone.id
-                zone_import.message = (
-                    f'{zone.name} imported'
-                )
+                if force:
+                    zone_import = self._force_import_zone(
+                        context, zone_import, zone)
+                else:
+                    zone = self.create_zone(context, zone)
+                    zone_import.status = 'COMPLETE'
+                    zone_import.zone_id = zone.id
+                    zone_import.message = f'{zone.name} imported'
             except exceptions.DuplicateZone:
                 zone_import.status = 'ERROR'
                 zone_import.message = 'Duplicate zone.'
             except exceptions.InvalidTTL as e:
                 zone_import.status = 'ERROR'
                 zone_import.message = str(e)
+            except exceptions.Forbidden:
+                zone_import.status = 'ERROR'
+                zone_import.message = 'Failed to create zone - Forbidden'
             except exceptions.OverQuota:
                 zone_import.status = 'ERROR'
                 zone_import.message = 'Quota exceeded during zone import.'
@@ -2940,7 +2948,66 @@ class Service(service.RPCService):
                 )
                 zone_import.status = 'ERROR'
 
-        self.update_zone_import(context, zone_import)
+        self.update_zone_import(context.elevated(), zone_import)
+
+    def _force_import_zone(self, context, zone_import, zone):
+        """Update an existing zone's recordsets from an imported zonefile.
+
+        If the zone does not exist yet, create it normally.
+        If it does exist, synchronise recordsets:
+          - present in new, absent in old  -> create
+          - present in both                -> update
+          - absent in new, present in old  -> delete
+        SOA and apex NS records are skipped (managed by Designate).
+        """
+        try:
+            existing_zone = self.storage.find_zone(
+                context, {'name': zone.name})
+        except exceptions.ZoneNotFound:
+            zone = self.create_zone(context, zone)
+            zone_import.status = 'COMPLETE'
+            zone_import.zone_id = zone.id
+            zone_import.message = f'{zone.name} imported'
+            return zone_import
+
+        # Build lookup dicts keyed by "<name>_<type>"
+        criterion = {'zone_id': existing_zone.id}
+        existing_rrsets = {
+            f'{r.name}_{r.type}': r
+            for r in self.storage.find_recordsets(context, criterion)
+            if not (r.type == 'SOA' or
+                    (r.type == 'NS' and r.name == existing_zone.name))
+        }
+        new_rrsets = {
+            f'{r.name}_{r.type}': r
+            for r in zone.recordsets
+        }
+
+        for key, existing in existing_rrsets.items():
+            if key not in new_rrsets:
+                LOG.debug('Force import: deleting recordset %s for zone %s',
+                          existing.id, existing_zone.id)
+                self.delete_recordset(context, existing_zone.id, existing.id)
+            else:
+                new = new_rrsets[key]
+                new.id = existing.id
+                new.zone_id = existing_zone.id
+                new.tenant_id = existing_zone.tenant_id
+                LOG.debug('Force import: updating recordset %s for zone %s',
+                          key, existing_zone.id)
+                self.update_recordset(context, new)
+
+        # Iterate new_rrsets separately so we never mutate a dict mid-loop.
+        for key, new in new_rrsets.items():
+            if key not in existing_rrsets:
+                LOG.debug('Force import: creating recordset %s for zone %s',
+                          key, existing_zone.id)
+                self.create_recordset(context, existing_zone.id, new)
+
+        zone_import.status = 'COMPLETE'
+        zone_import.zone_id = existing_zone.id
+        zone_import.message = f'{existing_zone.name} imported'
+        return zone_import
 
     @notification.notify_type('dns.zone_import.update')
     def update_zone_import(self, context, zone_import):
