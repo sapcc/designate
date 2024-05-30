@@ -550,13 +550,15 @@ class RecoverShard(base.Task):
         }
         error_zones = self.storage.find_zones(self.context, criterion)
 
+        max_prop_time = 300
         # Include things that have been hanging out in PENDING
-        # status for longer than they should
+        # status for more than 5 minutes
         # Generate the current serial, will provide a UTC Unix TS.
+        # TODO: this does not work correctly for non-Unix TS serials.
         stale_criterion = {
             'shard': "BETWEEN %s,%s" % (self.begin_shard, self.end_shard),
             'status': 'PENDING',
-            'serial': "<%s" % (timeutils.utcnow_ts() - self.max_prop_time)
+            'serial': "<%s" % (timeutils.utcnow_ts() - max_prop_time)
         }
 
         stale_zones = self.storage.find_zones(self.context, stale_criterion)
@@ -564,7 +566,7 @@ class RecoverShard(base.Task):
             LOG.warning('Found %(len)d zones PENDING for more than %(sec)d '
                         'seconds', {
                             'len': len(stale_zones),
-                            'sec': self.max_prop_time
+                            'sec': max_prop_time
                         })
             error_zones.extend(stale_zones)
 
