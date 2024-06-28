@@ -15,6 +15,7 @@
 # under the License.
 import time
 from collections import namedtuple
+from datetime import timedelta
 
 import dns
 from oslo_config import cfg
@@ -550,23 +551,29 @@ class RecoverShard(base.Task):
         }
         error_zones = self.storage.find_zones(self.context, criterion)
 
-        max_prop_time = 300
-        # Include things that have been hanging out in PENDING
-        # status for more than 5 minutes
-        # Generate the current serial, will provide a UTC Unix TS.
-        # TODO: this does not work correctly for non-Unix TS serials.
+        delta = timedelta(seconds=self.max_prop_time)
+        stale_dt = timeutils.utcnow() - delta
+
+        # serial can only be used in case of unix timestamp format.
+        # because serial can be in any format - we use last update time
+        # to find stale zones.
         stale_criterion = {
             'shard': "BETWEEN %s,%s" % (self.begin_shard, self.end_shard),
             'status': 'PENDING',
-            'serial': "<%s" % (timeutils.utcnow_ts() - max_prop_time)
+            'updated_at': "<%s" % stale_dt
         }
 
         stale_zones = self.storage.find_zones(self.context, stale_criterion)
         if stale_zones:
+            stale_zone_names = []
+            for zone in stale_zones.objects:
+                stale_zone_names.append(zone.name)
+
             LOG.warning('Found %(len)d zones PENDING for more than %(sec)d '
-                        'seconds', {
+                        'seconds: %(zones)s', {
                             'len': len(stale_zones),
-                            'sec': max_prop_time
+                            'sec': self.max_prop_time,
+                            'zones': stale_zone_names
                         })
             error_zones.extend(stale_zones)
 
