@@ -3144,7 +3144,7 @@ class Service(service.RPCService):
             try:
                 if force:
                     try:
-                        zone_object = self.find_zone(
+                        zone_object = self.storage.find_zone(
                             context,
                             {'name': zone.name}
                         )
