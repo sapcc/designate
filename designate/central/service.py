@@ -871,10 +871,11 @@ class Service(service.RPCService):
     @transaction
     @synchronized_zone()
     def increment_zone_serial(self, context, zone):
-        if zone.created_at.timestamp() < zone.serial < zone.created_at.now().timestamp():
-            zone.serial = self.storage.increment_serial(
-                context, zone.id, int(zone.created_at.now().timestamp())
-            )
+        if zone.created_at.timestamp() < zone.serial:
+            if zone.serial < zone.created_at.now().timestamp():
+                zone.serial = self.storage.increment_serial(
+                    context, zone.id, int(zone.created_at.now().timestamp())
+                )
         else:
             zone.serial = self.storage.increment_serial(
                 context, zone.id, zone.serial + 1
@@ -3023,9 +3024,7 @@ class Service(service.RPCService):
     def create_zone_import(self, context, request_body,
                            pool_id='', force=False):
         target = {'tenant_id': context.project_id}
-        policy.check('create_zone_import', context, target)
-        if force:
-            policy.check('create_force_zone_import', context, target)
+        policy.check('create_force_zone_import', context, target)
         values = {
             'status': 'PENDING',
             'message': None,
@@ -3056,8 +3055,8 @@ class Service(service.RPCService):
                 if rrset not in new_rrsets:
                     LOG.debug(f"Deleting recordset {recordset_id}"
                               f" for zone {zone_object.id}")
-                    self.delete_recordset(context, zone_object.id,
-                                          recordset_id)
+                    self.storage.delete_recordset(context, zone_object.id,
+                                                  recordset_id)
                 if rrset in new_rrsets:
                     new_rrsets[rrset].id = recordset_id
                     new_rrsets[rrset].zone_id = zone_object.id
@@ -3140,7 +3139,7 @@ class Service(service.RPCService):
 
         # If the zone import was valid, create the zone
         if zone_import.status != 'ERROR':
-
+            target = {'tenant_id': context.project_id}
             try:
                 if force:
                     try:
@@ -3149,10 +3148,19 @@ class Service(service.RPCService):
                             {'name': zone.name}
                         )
                     except exceptions.ZoneNotFound:
-                        zone = self.create_zone(context, zone)
+                        if policy.check('create_zone_import', context,
+                                        target, do_raise=False):
+                            zone = self.create_zone(context, zone)
+                        else:
+                            zone_import.status = 'ERROR'
+                            zone_import.message = 'Failed to create zone' \
+                                                  ' - Forbidden'
+                            self.update_zone_import(context, zone_import)
+                            raise exceptions.Forbidden
                     else:
                         criterion = {'zone_id': zone_object.id}
-                        rrsets = self.find_recordsets(context, criterion)
+                        rrsets = self.storage.find_recordsets(context,
+                                                              criterion)
                         existing_rrsets = dict()
                         for rrset in rrsets:
                             if rrset.type == 'SOA':
@@ -3162,15 +3170,26 @@ class Service(service.RPCService):
                             existing_rrsets[
                                 f"{rrset.name}_{rrset.type}"] = rrset
                         new_rrsets = {
-                            f"{rrset.name}_{rrset.type}": rrset for rrset in zone.recordsets
+                            f"{rrset.name}_{rrset.type}": rrset for rrset
+                            in zone.recordsets
                         }
                         _force_import(existing_rrsets, new_rrsets)
+                        zone_import.zone_id = zone_object.id
                 else:
-                    zone = self.create_zone(context, zone)
+                    if policy.check('create_zone_import', context,
+                                    target, do_raise=False):
+                        zone = self.create_zone(context, zone)
+                    else:
+                        zone_import.status = 'ERROR'
+                        zone_import.message = 'Failed to create zone' \
+                                              ' - Forbidden'
+                        self.update_zone_import(context, zone_import)
+                        raise exceptions.Forbidden
                 zone_import.status = 'COMPLETE'
                 zone_import.zone_id = zone.id
                 zone_import.message = '%(name)s imported' % {'name':
                                                              zone.name}
+
             except exceptions.DuplicateZone:
                 zone_import.status = 'ERROR'
                 zone_import.message = 'Duplicate zone.'
