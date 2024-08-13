@@ -3155,7 +3155,8 @@ class Service(service.RPCService):
                             zone_import.status = 'ERROR'
                             zone_import.message = 'Failed to create zone' \
                                                   ' - Forbidden'
-                            self.update_zone_import(context, zone_import)
+                            self.update_zone_import(context.elevated(),
+                                                    zone_import)
                             raise exceptions.Forbidden
                     else:
                         criterion = {'zone_id': zone_object.id}
@@ -3183,7 +3184,8 @@ class Service(service.RPCService):
                         zone_import.status = 'ERROR'
                         zone_import.message = 'Failed to create zone' \
                                               ' - Forbidden'
-                        self.update_zone_import(context, zone_import)
+                        self.update_zone_import(context.elevated(),
+                                                zone_import)
                         raise exceptions.Forbidden
                 zone_import.status = 'COMPLETE'
                 zone_import.zone_id = zone.id
@@ -3204,7 +3206,7 @@ class Service(service.RPCService):
                 zone_import.message = msg
                 zone_import.status = 'ERROR'
 
-        self.update_zone_import(context, zone_import)
+        self.update_zone_import(context.elevated(), zone_import)
 
     @rpc.expected_exceptions()
     def find_zone_imports(self, context, criterion=None, marker=None,
