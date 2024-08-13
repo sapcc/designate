@@ -3055,8 +3055,8 @@ class Service(service.RPCService):
                 if rrset not in new_rrsets:
                     LOG.debug(f"Deleting recordset {recordset_id}"
                               f" for zone {zone_object.id}")
-                    self.storage.delete_recordset(context, zone_object.id,
-                                                  recordset_id)
+                    self.delete_recordset(context, zone_object.id,
+                                          recordset_id)
                 if rrset in new_rrsets:
                     new_rrsets[rrset].id = recordset_id
                     new_rrsets[rrset].zone_id = zone_object.id
