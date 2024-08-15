@@ -3198,11 +3198,17 @@ class Service(service.RPCService):
             except exceptions.InvalidTTL as e:
                 zone_import.status = 'ERROR'
                 zone_import.message = str(e)
+            except exceptions.Forbidden:
+                zone_import.status = 'ERROR'
+                zone_import.message = 'Failed to create zone' \
+                                      ' - Forbidden'
             except Exception as e:
                 LOG.exception('An undefined error occurred during zone '
                               'import creation')
                 msg = 'An undefined error occurred. %s'\
                       % str(e)[:130]
+                if isinstance(e.__context__, exceptions.DuplicateZone):
+                    msg = 'Duplicate zone.'
                 zone_import.message = msg
                 zone_import.status = 'ERROR'
 
