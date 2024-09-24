@@ -871,11 +871,11 @@ class Service(service.RPCService):
     @transaction
     @synchronized_zone()
     def increment_zone_serial(self, context, zone):
-        if zone.created_at.timestamp() < zone.serial:
-            if zone.serial < zone.created_at.now().timestamp():
-                zone.serial = self.storage.increment_serial(
-                    context, zone.id, int(zone.created_at.now().timestamp())
-                )
+        created_ts = zone.created_at.timestamp()
+        now_ts = zone.created_at.now().timestamp()
+        if created_ts < zone.serial < now_ts:
+            zone.serial = self.storage.increment_serial(
+                context, zone.id, int(now_ts))
         else:
             zone.serial = self.storage.increment_serial(
                 context, zone.id, zone.serial + 1
