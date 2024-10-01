@@ -1106,6 +1106,9 @@ class Service(service.RPCService):
         if 'name' in changes:
             raise exceptions.BadRequest('Renaming a zone is not allowed')
 
+        if "serial" in changes:
+            self._update_soa(context, zone)
+
         # Ensure TTL is above the minimum
         ttl = changes.get('ttl')
         self._is_valid_ttl(context, ttl)
