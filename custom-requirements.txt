@@ -1,6 +1,7 @@
 dumb-init
 jaeger-client
 python-memcached
+kubernetes-entrypoint
 pymemcache
 redis
 raven
