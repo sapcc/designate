@@ -1384,6 +1384,7 @@ class CentralZoneTestCase(CentralBasic):
             id=CentralZoneTestCase.recordset_id,
             managed=True,
             tenant_id='2',
+            type='A',
         )
         self.context = mock.Mock()
         self.context.edit_managed_records = False
