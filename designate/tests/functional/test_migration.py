@@ -131,6 +131,9 @@ class DesignateMigrationsWalk(
         pass
 
     def _check_f49c4409c8ba(self, connection):
+        pass 
+        
+    def _check_018194635d9e(self, connection):
         pass
 
     def test_single_base_revision(self):
@@ -180,6 +183,10 @@ class DesignateMigrationsWalk(
                                    'is_migration_needed',
                                    return_value=False):
                 for revision in revisions:
+                    # CCloud only, Dalmatian upgrade:
+                    if revision == '018194635d9e':
+                        # skip because it is temporary
+                        continue
                     LOG.info('Testing revision %s', revision)
                     self._migrate_up(connection, revision)
 
