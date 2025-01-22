@@ -44,8 +44,7 @@ class SharedZonesController(rest.RestController):
         return DesignateAdapter.render('API_v2', zone, request=request)
 
     @pecan.expose(template='json:', content_type='application/json')
-    @utils.validate_uuid('zone_id')
-    def get_all(self, zone_id, **params):
+    def get_all(self, **params):
         """List all Shared Zones"""
         request = pecan.request
         context = request.environ['context']
@@ -58,8 +57,6 @@ class SharedZonesController(rest.RestController):
         accepted_filters = ('target_project_id',)
         criterion = self._apply_filter_params(
             params, accepted_filters, {})
-
-        criterion['zone_id'] = zone_id
 
         shared_zones = self.central_api.find_shared_zones(
             context, criterion, marker, limit, sort_key, sort_dir)
