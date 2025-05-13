@@ -629,7 +629,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
     def test_create_subzone_failure(self):
         # Set the policy to reject subzone creation in other tenants
-        self.policy({'create_super_zone': '!'})
+        self.policy({'create_sub_zone_other_project': '!'})
 
         context = self.get_admin_context()
 
@@ -657,7 +657,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
     def test_create_subzone_in_other_tenants_via_policy(self):
         # Set the policy to allow subzone creation in other tenants
-        self.policy({'create_super_zone': '@'})
+        self.policy({'create_sub_zone_other_project': '@'})
 
         context = self.get_admin_context()
 

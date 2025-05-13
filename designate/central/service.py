@@ -806,7 +806,7 @@ class Service(service.RPCService):
                 zone.parent_zone_id = parent_zone.id
                 # Do subzone policy check instead of regular create_zone
                 policy.check('create_sub_zone', context, target)
-            elif not policy.check('create_super_zone', context,
+            elif not policy.check('create_sub_zone_other_project', context,
                                   do_raise=False):
                 raise exceptions.IllegalChildZone('Unable to create '
                                                   'subzone in another '
