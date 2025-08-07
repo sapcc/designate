@@ -2,6 +2,7 @@ dumb-init
 jaeger-client
 python-memcached
 pymemcache
+python-binary-memcached
 redis
 raven
 paste
