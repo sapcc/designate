@@ -790,6 +790,12 @@ class Service(service.RPCService):
         # Get a pool id
         zone.pool_id = self.scheduler.schedule_zone(context, zone)
 
+        # Get Domain name to handle IAAS domains differently
+        if context.project_domain_name:
+            domain_name = context.project_domain_name.lower()
+        else:
+            domain_name = ''
+
         # Handle sub-zones appropriately
         parent_zone = self._is_subzone(
             context, zone.name, zone.pool_id)
@@ -806,8 +812,15 @@ class Service(service.RPCService):
             if parent_zone.tenant_id == zone.tenant_id or parent_zone_shared:
                 # Record the Parent Zone ID
                 zone.parent_zone_id = parent_zone.id
+
                 # Do subzone policy check instead of regular create_zone
-                policy.check('create_sub_zone', context, target)
+                if domain_name.startswith('iaas'):
+                    # Special case - IAAS Keystone Domains
+                    policy.check('create_iaas_zone', context, target)
+                else:
+                    # All other Keystone Domains apply default rule
+                    policy.check('create_sub_zone', context, target)
+
             elif not policy.check('create_sub_zone_other_project', context,
                                   do_raise=False):
                 raise exceptions.IllegalChildZone('Unable to create '
@@ -815,7 +828,12 @@ class Service(service.RPCService):
                                                   'tenants zone')
         else:
             # If not subzone, regular policy check applies
-            policy.check('create_zone', context, target)
+            if domain_name.startswith('iaas'):
+                # Special case - IAAS Keystone Domains
+                policy.check('create_iaas_zone', context, target)
+            else:
+                # All other Keystone Domains apply default rule
+                policy.check('create_zone', context, target)
 
         # Handle super-zones appropriately
         subzones = self._is_superzone(context, zone.name, zone.pool_id)

@@ -99,6 +99,17 @@ class ZonesController(rest.RestController):
             mgmt_email = CONF['service:central'].managed_resource_email
             zone['email'] = mgmt_email
 
+        # Extract domain name for IAAS domain policy checks down in central
+        try:
+            token_info = request.environ['keystone.token_info']
+            token = token_info['token']
+            project_info = token['project']
+            domain_info = project_info['domain']
+            context.project_domain_name = domain_info['name']
+        except KeyError:
+            LOG.error('Not able to find Keystone domain name when '
+                      'creating a zone: %s', zone.name)
+
         # Create the zone
         zone = self.central_api.create_zone(context, zone)
 
