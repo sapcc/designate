@@ -3923,6 +3923,7 @@ class SqlalchemyStorageTest(designate.tests.functional.TestCase):
             'records',
             'recordsets',
             'service_statuses',
+            'shared_pools',
             'shared_zones',
             'tlds',
             'tsigkeys',

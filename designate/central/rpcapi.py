@@ -75,6 +75,8 @@ class CentralAPI:
         6.10 - Add Zone Pool Move method
         6.11 - Add zone attributes to zone import
         6.12 - Add delete service status method
+        6.11.sap - Add delete service status method
+        6.12.sap - Add methods for shared pools
     """
     RPC_API_VERSION = '6.12'
 
@@ -328,6 +330,27 @@ class CentralAPI:
     def update_status(self, context, zone_id, status, serial, action=None):
         self.client.cast(context, 'update_status', zone_id=zone_id,
                          status=status, serial=serial, action=action)
+
+    # Shared pools methods
+    def share_pool(self, context, pool_id, shared_pool):
+        return self.client.call(context, 'share_pool', pool_id=pool_id,
+                                shared_pool=shared_pool)
+
+    def unshare_pool(self, context, pool_id, pool_share_id):
+        return self.client.call(context, 'unshare_pool',
+                                pool_id=pool_id, pool_share_id=pool_share_id)
+
+    def find_shared_pools(self, context, criterion=None, marker=None,
+                          limit=None, sort_key=None, sort_dir=None):
+        return self.client.call(
+            context, 'find_shared_pools', criterion=criterion, marker=marker,
+            limit=limit, sort_key=sort_key, sort_dir=sort_dir)
+
+    def get_shared_pool(self, context, pool_id, pool_share_id):
+        return self.client.call(
+            context, 'get_shared_pool', pool_id=pool_id,
+            pool_share_id=pool_share_id
+        )
 
     # Zone Ownership Transfers
     def create_zone_transfer_request(self, context, zone_transfer_request):

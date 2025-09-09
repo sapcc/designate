@@ -49,6 +49,9 @@ class PoolYAMLAdapter(base.YAMLAdapter):
             },
             'catalog_zone': {
                 'read_only': False
+            },
+            'domain_id': {
+                'read_only': False
             }
         }
     }

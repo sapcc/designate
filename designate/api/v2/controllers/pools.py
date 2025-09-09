@@ -16,6 +16,7 @@ from oslo_log import log as logging
 import pecan
 
 from designate.api.v2.controllers import rest
+from designate.api.v2.controllers import sharedpools
 from designate.objects.adapters import DesignateAdapter
 from designate.objects import Pool
 from designate import utils
@@ -26,6 +27,7 @@ LOG = logging.getLogger(__name__)
 
 class PoolsController(rest.RestController):
     SORT_KEYS = ['created_at', 'id', 'updated_at', 'name']
+    shares = sharedpools.SharedPoolsController()
 
     @pecan.expose(template='json:', content_type='application/json')
     @utils.validate_uuid('pool_id')
@@ -81,6 +83,10 @@ class PoolsController(rest.RestController):
 
         # Create the pool
         pool = self.central_api.create_pool(context, pool)
+
+        # Shared is a virtual database column, so inject False here as a
+        # new pool cannot yet be shared.
+        pool.shared = False
 
         LOG.info("Created %(pool)s", {'pool': pool})
 

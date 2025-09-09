@@ -15,6 +15,7 @@ from oslo_log import log as logging
 from oslo_utils.strutils import bool_from_string
 
 from designate import exceptions
+from designate.common import constants
 from designate.objects import PoolList
 from designate.scheduler.filters import base
 
@@ -56,8 +57,42 @@ class AttributeFilter(base.Filter):
     """
 
     def filter(self, context, pools, zone):
+
+        # Get Domain name to handle IAAS domains differently
+        if context.project_domain_name:
+            domain_name = context.project_domain_name.lower()
+        else:
+            domain_name = ''
+
         try:
-            zone_attributes = zone.attributes.to_dict()
+            # if pool_id was given - schedule there
+            pool_id = zone.attributes.get('pool_id')
+            if pool_id:
+                try:
+                    pool = self.storage.get_pool(context, pool_id)
+                except Exception:
+                    return PoolList()
+
+                if domain_name.startswith('iaas'):
+                    # Special case - IAAS Keystone Domains
+                    if policy.enforce_new_defaults():
+                        target = {constants.RBAC_PROJECT_ID: zone.tenant_id}
+                    else:
+                        target = {'tenant_id': zone.tenant_id}
+                    policy.check('iaas_zone_create_forced_pool',
+                                 context,
+                                 target)
+                else:
+                    # All other Keystone Domains apply default rule
+                    policy.check('zone_create_forced_pool', context, pool)
+
+                if pool in pools:
+                    pools = PoolList()
+                    pools.append(pool)
+                    return pools
+            else:
+                # otherwise - do attributes check as usual
+                zone_attributes = zone.attributes.to_dict()
         except exceptions.RelationNotLoaded:
             zone_attributes = {}
 
