@@ -35,17 +35,19 @@ class DesignateContext(context.RequestContext):
     _hard_delete = False
     _client_addr = None
     _delete_shares = False
+    _project_domain_name = None
     FROM_DICT_EXTRA_KEYS = [
         'original_project_id', 'service_catalog', 'all_tenants', 'abandon',
         'edit_managed_records', 'tsigkey_id', 'hide_counts', 'client_addr',
-        'hard_delete', 'delete_shares'
+        'hard_delete', 'delete_shares', 'project_domain_name'
     ]
 
     def __init__(self, service_catalog=None, all_tenants=False, abandon=None,
                  tsigkey_id=None, original_project_id=None,
                  edit_managed_records=False, hide_counts=False,
                  client_addr=None, user_auth_plugin=None,
-                 hard_delete=False, delete_shares=False, **kwargs):
+                 hard_delete=False, delete_shares=False,
+                 project_domain_name=None, **kwargs):
         super().__init__(**kwargs)
 
         self.user_auth_plugin = user_auth_plugin
@@ -61,6 +63,7 @@ class DesignateContext(context.RequestContext):
         self.hide_counts = hide_counts
         self.client_addr = client_addr
         self.delete_shares = delete_shares
+        self.project_domain_name = project_domain_name
 
     def deepcopy(self):
         return self.from_dict(self.to_dict())
@@ -98,6 +101,7 @@ class DesignateContext(context.RequestContext):
             'hide_counts': self.hide_counts,
             'client_addr': self.client_addr,
             'delete_shares': self.delete_shares,
+            'project_domain_name': self.project_domain_name,
         })
 
         return copy.deepcopy(d)
@@ -207,6 +211,14 @@ class DesignateContext(context.RequestContext):
     @delete_shares.setter
     def delete_shares(self, value):
         self._delete_shares = value
+
+    @property
+    def project_domain_name(self):
+        return self._project_domain_name
+
+    @project_domain_name.setter
+    def project_domain_name(self, value):
+        self._project_domain_name = value
 
     def get_auth_plugin(self):
         if self.user_auth_plugin:
