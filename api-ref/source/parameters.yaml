@@ -280,6 +280,15 @@ target_project_id_filter:
   type: string
   min_version: 2.1
 
+target_domain_id_filter:
+  description: |
+    Filter results to only show resources that have a matching
+    target_domain_id
+  in: query
+  required: false
+  type: string
+  min_version: 2.1
+
 tld_name_filter:
   description: |
     Filter results to only show tlds that have a name matching the filter
@@ -643,6 +652,30 @@ project_id:
   in: body
   required: true
   type: uuid
+
+path_pool_share_id:
+  description: |
+    ID of the pool share.
+  in: path
+  required: true
+  type: uuid
+  min_version: 2.1
+
+shared_pool_id:
+  description: |
+    ID for the pool being shared.
+  in: body
+  required: true
+  type: uuid
+  min_version: 2.1
+
+pool_shared:
+  description: |
+    True if the pool is shared with another domain.
+  in: body
+  required: true
+  type: bool
+  min_version: 2.1
 
 recordset_description:
   description: |

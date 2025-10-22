@@ -1436,6 +1436,12 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         :param context: RPC Context.
         :param pool: Pool object with the values to be created.
         """
+        if not context.is_admin:
+            if context.project_domain_id != pool.domain_id and not pool.shared:
+                raise exceptions.Forbidden(
+                    "It's not allowed to create pools in other domain"
+                )
+
         pool = self._create(
             tables.pools, pool, exceptions.DuplicatePool,
             ['attributes', 'ns_records', 'nameservers', 'targets',
@@ -2698,3 +2704,68 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         records.append(soa_record)
 
         return records
+
+    # Shared pools methods
+    def _find_shared_pools(self, context, criterion, one=False, marker=None,
+                           limit=None, sort_key=None, sort_dir=None):
+
+        table = tables.shared_pools
+
+        query = select(table)
+
+        return self._find(
+            context, tables.shared_pools, objects.SharedPool,
+            objects.SharedPoolList, exceptions.SharedPoolNotFound, criterion,
+            one, marker, limit, sort_key, sort_dir, query=query,
+            apply_tenant_criteria=False)
+
+    def _find_pool_share(self, context, pool):
+        criterion = {
+            "target_domain_id": context.domain_id,
+            "pool_id": pool.id
+        }
+
+        try:
+            return self._find(
+                context, tables.shared_pools, objects.SharedPool,
+                objects.SharedPoolList, exceptions.SharedPoolNotFound,
+                criterion,
+                one=True
+            )
+        except exceptions.SharedPoolNotFound:
+            return None
+
+    def share_pool(self, context, shared_pool):
+        return self._create(tables.shared_pools, shared_pool,
+                            exceptions.DuplicateSharedPool)
+
+    def unshare_pool(self, context, pool_id, shared_pool_id):
+        shared_pool = self._find_shared_pools(
+            context, {'id': shared_pool_id, 'pool_id': pool_id}, one=True
+        )
+        return self._delete(context, tables.shared_pools, shared_pool,
+                            exceptions.SharedPoolNotFound)
+
+    def find_shared_pools(self, context, criterion=None, marker=None,
+                          limit=None, sort_key=None, sort_dir=None):
+        return self._find_shared_pools(
+            context, criterion, marker=marker,
+            limit=limit, sort_key=sort_key, sort_dir=sort_dir
+        )
+
+    def get_shared_pool(self, context, pool_id, shared_pool_id):
+        return self._find_shared_pools(
+            context, {'id': shared_pool_id, 'pool_id': pool_id}, one=True
+        )
+
+    def is_pool_shared_with_domain(self, pool_id, domain_id):
+        query = select(literal_column('true'))
+        query = query.where(tables.shared_pools.c.pool_id == pool_id)
+        query = query.where(
+            tables.shared_pools.c.target_domain_id == domain_id)
+        return self.session.scalar(query) is not None
+
+    def delete_pool_shares(self, pool_id):
+        query = tables.shared_pools.delete().where(
+            tables.shared_pools.c.pool_id == pool_id)
+        self.session.execute(query)

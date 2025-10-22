@@ -36,6 +36,7 @@ class DesignateContext(context.RequestContext):
     _client_addr = None
     _delete_shares = False
     _project_domain_name = None
+    _domain_id = None
     FROM_DICT_EXTRA_KEYS = [
         'original_project_id', 'service_catalog', 'all_tenants', 'abandon',
         'edit_managed_records', 'tsigkey_id', 'hide_counts', 'client_addr',
@@ -47,7 +48,8 @@ class DesignateContext(context.RequestContext):
                  edit_managed_records=False, hide_counts=False,
                  client_addr=None, user_auth_plugin=None,
                  hard_delete=False, delete_shares=False,
-                 project_domain_name=None, **kwargs):
+                 project_domain_name=None, domain_id=None,
+                 **kwargs):
         super().__init__(**kwargs)
 
         self.user_auth_plugin = user_auth_plugin
@@ -64,6 +66,7 @@ class DesignateContext(context.RequestContext):
         self.client_addr = client_addr
         self.delete_shares = delete_shares
         self.project_domain_name = project_domain_name
+        self.domain_id = domain_id
 
     def deepcopy(self):
         return self.from_dict(self.to_dict())
@@ -102,6 +105,7 @@ class DesignateContext(context.RequestContext):
             'client_addr': self.client_addr,
             'delete_shares': self.delete_shares,
             'project_domain_name': self.project_domain_name,
+            'domain_id': self.domain_id,
         })
 
         return copy.deepcopy(d)
@@ -219,6 +223,14 @@ class DesignateContext(context.RequestContext):
     @project_domain_name.setter
     def project_domain_name(self, value):
         self._project_domain_name = value
+
+    @property
+    def domain_id(self):
+        return self._domain_id
+
+    @project_domain_name.setter
+    def domain_id(self, value):
+        self._domain_id = value
 
     def get_auth_plugin(self):
         if self.user_auth_plugin:

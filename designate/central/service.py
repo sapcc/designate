@@ -56,7 +56,7 @@ LOG = logging.getLogger(__name__)
 
 
 class Service(service.RPCService):
-    RPC_API_VERSION = '6.11'
+    RPC_API_VERSION = '6.12'
 
     target = messaging.Target(version=RPC_API_VERSION)
 
@@ -2556,6 +2556,9 @@ class Service(service.RPCService):
         if pool.tenant_id is None:
             pool.tenant_id = context.project_id
 
+        if pool.domain_id is None:
+            pool.domain_id = context.domain_id if context.domain_id else context.domain
+
         policy.check('create_pool', context)
 
         created_pool = self.storage.create_pool(context, pool)
@@ -3509,3 +3512,108 @@ class Service(service.RPCService):
                     'hostname': service_status.hostname
                 }
             )
+
+    # Shared pools
+    @rpc.expected_exceptions()
+    @notification.notify_type('dns.pool.share')
+    @transaction
+    def share_pool(self, context, pool_id, shared_pool):
+        # Ensure that pool exists and get the pool owner
+        pool = self.storage.get_pool(context, pool_id)
+        domain_id = pool.domain_id
+        if not domain_id:
+            domain_id = context.domain_id
+        if policy.enforce_new_defaults():
+            target = {constants.RBAC_DOMAIN_ID: domain_id}
+        else:
+            target = {'domain_id': domain_id}
+
+        policy.check('share_pool', context, target)
+        shared_pool['domain_id'] = pool.domain_id
+        shared_pool['pool_id'] = pool_id
+
+        shared_pool = self.storage.share_pool(context, shared_pool)
+
+        return shared_pool
+
+    @rpc.expected_exceptions()
+    @notification.notify_type('dns.pool.unshare')
+    @transaction
+    def unshare_pool(self, context, pool_id, pool_share_id):
+        # Ensure the share exists and get the share owner
+        shared_pool = self.get_shared_pool(context, pool_id, pool_share_id)
+
+        if policy.enforce_new_defaults():
+            target = {constants.RBAC_PROJECT_ID: shared_pool.domain_id}
+        else:
+            target = {'domain_id': shared_pool.domain_id}
+
+        policy.check('unshare_pool', context, target)
+
+        shared_pool = self.storage.unshare_pool(
+            context, pool_id, pool_share_id
+        )
+
+        return shared_pool
+
+    @rpc.expected_exceptions()
+    def find_shared_pools(self, context, criterion=None, marker=None,
+                          limit=None, sort_key=None, sort_dir=None):
+
+        # By default we will let any valid token through as the filter
+        # criteria below will limit the scope of the results.
+        policy.check('find_pool_shares', context)
+
+        if not context.all_tenants and criterion:
+            # Check that they are asking for another projects shares
+            if policy.enforce_new_defaults():
+                target = {constants.RBAC_PROJECT_ID: criterion.get(
+                    'target_domain_id', context.domain_id)}
+            else:
+                target = {'domain_id': criterion.get('target_domain_id',
+                                                     context.domain_id)}
+
+            policy.check('find_project_pool_share', context, target)
+
+        shared_pools = self.storage.find_shared_pools(
+            context, criterion, marker, limit, sort_key, sort_dir
+        )
+
+        return shared_pools
+
+    @rpc.expected_exceptions()
+    def get_shared_pool(self, context, pool_id, pool_share_id):
+        # Ensure that share exists and get the share owner
+        pool_share = self.storage.get_shared_pool(
+            context, pool_id, pool_share_id)
+
+        if policy.enforce_new_defaults():
+            target = {constants.RBAC_PROJECT_ID: pool_share.domain_id}
+        else:
+            target = {'domain_id': pool_share.domain_id}
+
+        policy.check('get_pool_share', context, target)
+
+        return pool_share
+
+    def _check_pool_share_permission(self, context, pool):
+        """
+        Check if a request is acceptable for the requesting domain ID.
+        If the requestor is not the pool owner and the pool is not shared
+        with them, return a 404 Not Found to match previous API versions.
+        Otherwise, the later RBAC check will raise a 403 Forbidden.
+
+        :param context: The security context for the request.
+        :param pool: The pool the request is against.
+        :return: If the pool is shared with the requesting domain ID or not.
+        """
+        pool_shared = False
+        if (context.domain_id != pool.domain_id) and not context.all_tenants:
+            pool_shared = self.storage.is_pool_shared_with_domain(
+                pool.id, context.domain_id)
+            if not pool_shared:
+                # Maintain consistency with the previous API and _find_pools()
+                # and _find() when apply_tenant_criteria is True.
+                raise exceptions.PoolNotFound(
+                    "Could not find %s" % pool.obj_name())
+        return pool_shared

@@ -74,8 +74,9 @@ class CentralAPI:
         6.9 - Removed unused methods
         6.10 - Add Zone Pool Move method
         6.11 - Add delete service status method
+        6.12 - Add methods for shared pools
     """
-    RPC_API_VERSION = '6.11'
+    RPC_API_VERSION = '6.12'
 
     # This allows us to mark some methods as not logged.
     # This can be for a few reasons - some methods my not actually call over
@@ -88,7 +89,7 @@ class CentralAPI:
 
         target = messaging.Target(topic=self.topic,
                                   version=self.RPC_API_VERSION)
-        self.client = rpc.get_client(target, version_cap='6.11')
+        self.client = rpc.get_client(target, version_cap='6.12')
 
     @classmethod
     def get_instance(cls):
@@ -327,6 +328,28 @@ class CentralAPI:
     def update_status(self, context, zone_id, status, serial, action=None):
         self.client.cast(context, 'update_status', zone_id=zone_id,
                          status=status, serial=serial, action=action)
+
+    # Shared pools methods
+
+    def share_pool(self, context, pool_id, shared_pool):
+        return self.client.call(context, 'share_pool', pool_id=pool_id,
+                                shared_pool=shared_pool)
+
+    def unshare_pool(self, context, pool_id, pool_share_id):
+        return self.client.call(context, 'unshare_pool',
+                                pool_id=pool_id, pool_share_id=pool_share_id)
+
+    def find_shared_pools(self, context, criterion=None, marker=None,
+                          limit=None, sort_key=None, sort_dir=None):
+        return self.client.call(
+            context, 'find_shared_pools', criterion=criterion, marker=marker,
+            limit=limit, sort_key=sort_key, sort_dir=sort_dir)
+
+    def get_shared_pool(self, context, pool_id, pool_share_id):
+        return self.client.call(
+            context, 'get_shared_pool', pool_id=pool_id,
+            pool_share_id=pool_share_id
+        )
 
     # Zone Ownership Transfers
     def create_zone_transfer_request(self, context, zone_transfer_request):

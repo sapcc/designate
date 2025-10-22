@@ -23,6 +23,7 @@ EXPERIMENTAL = 'EXPERIMENTAL'
 # RBAC related constants
 RBAC_PROJECT_ID = 'project_id'
 RBAC_TARGET_PROJECT_ID = 'target_project_id'
+RBAC_DOMAIN_ID = 'domain_id'
 
 # Statuses
 ACTIVE = 'ACTIVE'

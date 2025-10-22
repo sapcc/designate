@@ -511,3 +511,20 @@ class MissingProjectID(BadRequest):
 class ZoneShared(DesignateException):
     error_code = 400
     error_type = 'zone_is_shared'
+
+
+class SharedPoolNotFound(NotFound):
+    error_type = 'shared_pool_not_found'
+
+
+class DuplicateSharedPool(Duplicate):
+    error_type = 'duplicate_shared_pool'
+
+
+class PoolShared(DesignateException):
+    error_code = 400
+    error_type = 'pool_is_shared'
+
+
+class InvalidDomain(BadRequest):
+    error_type = 'invalid_domain'
