@@ -16,6 +16,7 @@ from oslo_log import log as logging
 from designate import exceptions
 from designate import objects
 from designate import policy
+from designate.common import constants
 from designate.scheduler.filters import base
 
 LOG = logging.getLogger(__name__)
@@ -65,6 +66,11 @@ class PoolIDAttributeFilter(base.Filter):
             containing a single pool.
         :raises: Forbidden, PoolNotFound
         """
+        # Get Domain name to handle IAAS domains differently
+        if context.project_domain_name:
+            domain_name = context.project_domain_name.lower()
+        else:
+            domain_name = ''
 
         try:
             if zone.attributes.get('pool_id'):
@@ -73,7 +79,19 @@ class PoolIDAttributeFilter(base.Filter):
                     pool = self.storage.get_pool(context, pool_id)
                 except Exception:
                     return objects.PoolList()
-                policy.check('zone_create_forced_pool', context, pool)
+
+                if domain_name.startswith('iaas'):
+                    # Special case - IAAS Keystone Domains
+                    if policy.enforce_new_defaults():
+                        target = {constants.RBAC_PROJECT_ID: zone.tenant_id}
+                    else:
+                        target = {'tenant_id': zone.tenant_id}
+                    policy.check('iaas_zone_create_forced_pool',
+                                 context,
+                                 target)
+                else:
+                    # All other Keystone Domains apply default rule
+                    policy.check('zone_create_forced_pool', context, pool)
                 if pool in pools:
                     pools = objects.PoolList()
                     pools.append(pool)

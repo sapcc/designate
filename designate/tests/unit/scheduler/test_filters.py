@@ -33,6 +33,7 @@ class SchedulerFilterTest(oslotest.base.BaseTestCase):
     def setUp(self):
         super().setUp()
         self.context = mock.Mock()
+        self.context.project_domain_name = 'test'
         self.zone = objects.Zone(
             name='example.com.',
             type='PRIMARY',
