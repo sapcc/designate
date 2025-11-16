@@ -40,7 +40,7 @@ class DesignateContext(context.RequestContext):
     FROM_DICT_EXTRA_KEYS = [
         'original_project_id', 'service_catalog', 'all_tenants', 'abandon',
         'edit_managed_records', 'tsigkey_id', 'hide_counts', 'client_addr',
-        'hard_delete', 'delete_shares', 'project_domain_name'
+        'hard_delete', 'delete_shares', 'project_domain_name', 'domain_id',
     ]
 
     def __init__(self, service_catalog=None, all_tenants=False, abandon=None,
@@ -228,7 +228,7 @@ class DesignateContext(context.RequestContext):
     def domain_id(self):
         return self._domain_id
 
-    @project_domain_name.setter
+    @domain_id.setter
     def domain_id(self, value):
         self._domain_id = value
 

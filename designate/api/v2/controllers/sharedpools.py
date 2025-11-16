@@ -82,15 +82,6 @@ class SharedPoolsController(rest.RestController):
             context, payload.get('target_domain_id', None)
         )
 
-        try:
-            token_info = request.environ['keystone.token_info']
-            token = token_info['token']
-            project_info = token['project']
-            context.domain_id = project_info['domain']['id']
-        except KeyError:
-            LOG.error('Not able to find Keystone domain name when '
-                      'creating a shared pool: %s', pool_id)
-
         pool_share = DesignateAdapter.parse('API_v2', payload, SharedPool())
 
         pool_share = self.central_api.share_pool(context, pool_id, pool_share)

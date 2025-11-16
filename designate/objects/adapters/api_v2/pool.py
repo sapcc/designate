@@ -39,6 +39,9 @@ class PoolAPIv2Adapter(base.APIv2Adapter):
             "created_at": {},
             "updated_at": {},
             "shared": {},
+            "domain_id": {
+                'read_only': False
+            },
         },
         'options': {
             'links': True,

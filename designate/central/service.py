@@ -788,7 +788,7 @@ class Service(service.RPCService):
         self._is_valid_ttl(context, zone.ttl)
 
         # Get a pool id
-        zone.pool_id = self.scheduler.schedule_zone(context, zone)
+        zone.pool_id = self.scheduler.schedule_zone(context.elevated(all_tenants=True), zone)
 
         # Get Domain name to handle IAAS domains differently
         if context.project_domain_name:
@@ -2555,9 +2555,8 @@ class Service(service.RPCService):
         # Verify that there is a tenant_id
         if pool.tenant_id is None:
             pool.tenant_id = context.project_id
-
-        if pool.domain_id is None:
-            pool.domain_id = context.domain_id if context.domain_id else context.domain
+        if not pool.domain_id:
+            pool.domain_id = context.domain_id if context.domain_id else context.domain_name
 
         policy.check('create_pool', context)
 
@@ -3519,10 +3518,13 @@ class Service(service.RPCService):
     @transaction
     def share_pool(self, context, pool_id, shared_pool):
         # Ensure that pool exists and get the pool owner
-        pool = self.storage.get_pool(context, pool_id)
+        elevated_context = context.elevated(all_tenants=True)
+        pool = self.storage.get_pool(elevated_context, pool_id)
         domain_id = pool.domain_id
         if not domain_id:
-            domain_id = context.domain_id
+            raise exceptions.PoolWithoutDomainId(
+                f"Pools {pool_id} doesn't have domain_id"
+                f"Specify domain_id in pools.yaml.")
         if policy.enforce_new_defaults():
             target = {constants.RBAC_DOMAIN_ID: domain_id}
         else:
@@ -3595,25 +3597,3 @@ class Service(service.RPCService):
         policy.check('get_pool_share', context, target)
 
         return pool_share
-
-    def _check_pool_share_permission(self, context, pool):
-        """
-        Check if a request is acceptable for the requesting domain ID.
-        If the requestor is not the pool owner and the pool is not shared
-        with them, return a 404 Not Found to match previous API versions.
-        Otherwise, the later RBAC check will raise a 403 Forbidden.
-
-        :param context: The security context for the request.
-        :param pool: The pool the request is against.
-        :return: If the pool is shared with the requesting domain ID or not.
-        """
-        pool_shared = False
-        if (context.domain_id != pool.domain_id) and not context.all_tenants:
-            pool_shared = self.storage.is_pool_shared_with_domain(
-                pool.id, context.domain_id)
-            if not pool_shared:
-                # Maintain consistency with the previous API and _find_pools()
-                # and _find() when apply_tenant_criteria is True.
-                raise exceptions.PoolNotFound(
-                    "Could not find %s" % pool.obj_name())
-        return pool_shared

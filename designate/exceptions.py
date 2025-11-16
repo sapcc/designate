@@ -528,3 +528,7 @@ class PoolShared(DesignateException):
 
 class InvalidDomain(BadRequest):
     error_type = 'invalid_domain'
+
+
+class PoolWithoutDomainId(BadRequest):
+    error_type = 'invalid_pool_domain_id'
