@@ -1,5 +1,4 @@
-# All Rights Reserved.
-#
+# Copyright 2025 Cloudification GmbH. All rights reserved.
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
 #    a copy of the License at
@@ -19,7 +18,7 @@ rules = [
     policy.DocumentedRuleDefault(
         name="get_pool_share",
         check_str=base.RULE_ADMIN,
-        scope_types=['system', 'project'],
+        scope_types=['system', 'domain', 'project'],
         description="Get a Pool Share",
         operations=[
             {
@@ -31,7 +30,7 @@ rules = [
     policy.DocumentedRuleDefault(
         name="share_pool",
         check_str=base.RULE_ADMIN,
-        scope_types=['system', 'project'],
+        scope_types=['system', 'domain', 'project'],
         description="Share a Pool",
         operations=[
             {
@@ -54,15 +53,15 @@ rules = [
         ]
     ),
     policy.RuleDefault(
-        name="find_project_pool_share",
+        name="find_domain_pool_share",
         check_str=base.RULE_ADMIN,
-        scope_types=['system', 'project'],
-        description="Check the can query for a specific projects shares.",
+        scope_types=['system', 'domain', 'project'],
+        description="Check the can query for a specific domains shares.",
     ),
     policy.DocumentedRuleDefault(
         name="unshare_pool",
         check_str=base.RULE_ADMIN,
-        scope_types=['system', 'project'],
+        scope_types=['system', 'domain', 'project'],
         description="Unshare Pool",
         operations=[
             {

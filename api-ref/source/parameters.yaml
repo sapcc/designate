@@ -287,7 +287,7 @@ target_domain_id_filter:
   in: query
   required: false
   type: string
-  min_version: 2.1
+  min_version: 2.3
 
 tld_name_filter:
   description: |
@@ -659,7 +659,7 @@ path_pool_share_id:
   in: path
   required: true
   type: uuid
-  min_version: 2.1
+  min_version: 2.3
 
 shared_pool_id:
   description: |
@@ -667,7 +667,7 @@ shared_pool_id:
   in: body
   required: true
   type: uuid
-  min_version: 2.1
+  min_version: 2.3
 
 pool_shared:
   description: |
@@ -675,7 +675,7 @@ pool_shared:
   in: body
   required: true
   type: bool
-  min_version: 2.1
+  min_version: 2.3
 
 recordset_description:
   description: |

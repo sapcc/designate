@@ -37,8 +37,6 @@ def upgrade() -> None:
     # Check if the equivalent legacy migration has already run
     # CCloud only, Shared Zones were used since years, therefore
     # we need to make old implementation compatible with Dalmatian release
-    if not legacy_utils.is_migration_needed(104):
-        return
 
     meta = sa.MetaData()
 
@@ -65,3 +63,11 @@ def upgrade() -> None:
         'pools',
         sa.Column('shared', sa.Boolean, default=False)
     )
+
+
+def downgrade() -> None:
+    # Revert the changes made in the upgrade function
+    op.drop_column('pools', 'shared')
+    op.drop_column('pools', 'domain_id')
+
+    op.drop_table('shared_pools')

@@ -66,3 +66,62 @@ class TestVerifyProjectid(oslotest.base.BaseTestCase):
             'KeystoneV3 endpoint not found',
             keystone.verify_project_id, mock.Mock(), '1'
         )
+
+
+class TestVerifyDomainId(oslotest.base.BaseTestCase):
+    def setUp(self):
+        super().setUp()
+
+    @mock.patch('keystoneauth1.adapter.Adapter.get')
+    def test_verify_domain_id(self, mock_get):
+        mock_result = mock.Mock()
+        mock_result.ok = True
+        mock_result.status_code = 200
+        mock_get.return_value = mock_result
+        self.assertTrue(keystone.verify_domain_id(mock.Mock(), '1'))
+
+    @mock.patch('keystoneauth1.adapter.Adapter.get')
+    def test_verify_domain_id_request_returns_403(self, mock_get):
+        mock_result = mock.Mock()
+        mock_result.ok = False
+        mock_result.status_code = 403
+        mock_get.return_value = mock_result
+        self.assertRaisesRegex(
+            exceptions.Forbidden,
+            '',
+            keystone.verify_domain_id,
+            mock.Mock(),
+            '1'
+        )
+
+    @mock.patch('keystoneauth1.adapter.Adapter.get')
+    def test_verify_domain_id_request_returns_404(self, mock_get):
+        mock_result = mock.Mock()
+        mock_result.ok = False
+        mock_result.status_code = 404
+        mock_get.return_value = mock_result
+        self.assertRaisesRegex(
+            exceptions.InvalidDomain,
+            '1 is not a valid domain ID.',
+            keystone.verify_domain_id, mock.Mock(), '1'
+        )
+
+    @mock.patch('keystoneauth1.adapter.Adapter.get')
+    def test_verify_domain_id_request_returns_500(self, mock_get):
+        mock_result = mock.Mock()
+        mock_result.ok = False
+        mock_result.status_code = 500
+        mock_get.return_value = mock_result
+        self.assertRaisesRegex(exceptions.UnknownFailure,
+                               "",
+                               keystone.verify_domain_id, mock.Mock(),
+                               '1')
+
+    @mock.patch('keystoneauth1.adapter.Adapter.get')
+    def test_verify_domain_endpoint_not_found(self, mock_get):
+        mock_get.side_effect = kse.EndpointNotFound
+        self.assertRaisesRegex(
+            exceptions.KeystoneCommunicationFailure,
+            'KeystoneV3 endpoint not found',
+            keystone.verify_domain_id, mock.Mock(), '1'
+        )

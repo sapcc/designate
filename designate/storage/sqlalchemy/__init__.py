@@ -1437,7 +1437,7 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         :param pool: Pool object with the values to be created.
         """
         if not context.is_admin:
-            if context.project_domain_id != pool.domain_id and not pool.shared:
+            if context.project_domain_id != pool.domain_id:
                 raise exceptions.Forbidden(
                     "It's not allowed to create pools in other domain"
                 )
@@ -2764,8 +2764,3 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         query = query.where(
             tables.shared_pools.c.target_domain_id == domain_id)
         return self.session.scalar(query) is not None
-
-    def delete_pool_shares(self, pool_id):
-        query = tables.shared_pools.delete().where(
-            tables.shared_pools.c.pool_id == pool_id)
-        self.session.execute(query)

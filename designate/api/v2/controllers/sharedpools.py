@@ -1,4 +1,4 @@
-# Copyright 2020 Cloudification GmbH. All rights reserved.
+# Copyright 2025 Cloudification GmbH. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -55,7 +55,7 @@ class SharedPoolsController(rest.RestController):
             context, params, self.SORT_KEYS)
 
         # Extract any filter params
-        accepted_filters = ('target_project_id',)
+        accepted_filters = ('target_domain_id',)
         criterion = self._apply_filter_params(
             params, accepted_filters, {})
 
@@ -89,7 +89,7 @@ class SharedPoolsController(rest.RestController):
         response.status_int = 201
 
         LOG.info(
-            "Shared %(shared_pool)s",
+            "Shared pool %(shared_pool)s",
             {'shared_pool': pool_share}
         )
 
@@ -107,4 +107,4 @@ class SharedPoolsController(rest.RestController):
         pool = self.central_api.unshare_pool(context, pool_id, pool_share_id)
         response.status_int = 204
 
-        LOG.info("Unshared %(pool)s", {'pool': pool})
+        LOG.info("Unshared pool %(pool)s", {'pool': pool})

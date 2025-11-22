@@ -9,10 +9,15 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+
 """WSGI application entry-point for the Designate API."""
+
 import threading
+
 from designate.api import wsgi
+
 application = None
+
 lock = threading.Lock()
 with lock:
     if application is None:

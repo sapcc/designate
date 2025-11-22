@@ -126,7 +126,7 @@ def verify_domain_id(context, domain_id):
     elif response.status_code == 403:
         # we don't have enough permission to verify this, so default
         # to "it's ok".
-        LOG.info(
+        LOG.error(
             'Insufficient permissions for user %(user)s to verify '
             'existence of domain_id %(did)s',
             {
@@ -134,14 +134,14 @@ def verify_domain_id(context, domain_id):
                 'did': domain_id
             }
         )
-        return True
+        raise exceptions.Forbidden()
     elif response.status_code == 404:
         # we got access, and we know this domain is not there
         raise exceptions.InvalidDomain(
             _('%s is not a valid domain ID.') % domain_id
         )
     else:
-        LOG.warning(
+        LOG.error(
             'Unexpected response from keystone trying to '
             'verify domain_id %(did)s - response: %(code)s %(content)s',
             {
@@ -150,4 +150,4 @@ def verify_domain_id(context, domain_id):
                 'content': response.content
             }
         )
-        return True
+        raise exceptions.UnknownFailure()

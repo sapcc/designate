@@ -761,8 +761,9 @@ class TestCase(base.BaseTestCase):
             values['tenant_id'] = context.project_id
 
         if 'domain_id' not in values:
-            if not context.domain_id:
-                values['domain_id'] = context.domain
+            if not context.domain_id and context.domain:
+                if context.domain.lower() == "default":
+                    values['domain_id'] = context.domain
             else:
                 values['domain_id'] = context.domain_id
 

@@ -788,7 +788,7 @@ class Service(service.RPCService):
         self._is_valid_ttl(context, zone.ttl)
 
         # Get a pool id
-        zone.pool_id = self.scheduler.schedule_zone(context.elevated(all_tenants=True), zone)
+        zone.pool_id = self.scheduler.schedule_zone(context, zone)
 
         # Get Domain name to handle IAAS domains differently
         if context.project_domain_name:
@@ -2556,7 +2556,11 @@ class Service(service.RPCService):
         if pool.tenant_id is None:
             pool.tenant_id = context.project_id
         if not pool.domain_id:
-            pool.domain_id = context.domain_id if context.domain_id else context.domain_name
+            if context.domain_id:
+                pool.domain_id = context.domain_id
+            if context.domain_name:
+                if context.domain_name.lower() == "default":
+                    pool.domain_id = context.domain_name
 
         policy.check('create_pool', context)
 
@@ -3523,7 +3527,7 @@ class Service(service.RPCService):
         domain_id = pool.domain_id
         if not domain_id:
             raise exceptions.PoolWithoutDomainId(
-                f"Pools {pool_id} doesn't have domain_id"
+                f"Pool {pool_id} doesn't have domain_id"
                 f"Specify domain_id in pools.yaml.")
         if policy.enforce_new_defaults():
             target = {constants.RBAC_DOMAIN_ID: domain_id}
@@ -3546,7 +3550,7 @@ class Service(service.RPCService):
         shared_pool = self.get_shared_pool(context, pool_id, pool_share_id)
 
         if policy.enforce_new_defaults():
-            target = {constants.RBAC_PROJECT_ID: shared_pool.domain_id}
+            target = {constants.RBAC_DOMAIN_ID: shared_pool.domain_id}
         else:
             target = {'domain_id': shared_pool.domain_id}
 
@@ -3569,13 +3573,13 @@ class Service(service.RPCService):
         if not context.all_tenants and criterion:
             # Check that they are asking for another projects shares
             if policy.enforce_new_defaults():
-                target = {constants.RBAC_PROJECT_ID: criterion.get(
+                target = {constants.RBAC_DOMAIN_ID: criterion.get(
                     'target_domain_id', context.domain_id)}
             else:
                 target = {'domain_id': criterion.get('target_domain_id',
                                                      context.domain_id)}
 
-            policy.check('find_project_pool_share', context, target)
+            policy.check('find_domain_pool_share', context, target)
 
         shared_pools = self.storage.find_shared_pools(
             context, criterion, marker, limit, sort_key, sort_dir
@@ -3590,7 +3594,7 @@ class Service(service.RPCService):
             context, pool_id, pool_share_id)
 
         if policy.enforce_new_defaults():
-            target = {constants.RBAC_PROJECT_ID: pool_share.domain_id}
+            target = {constants.RBAC_DOMAIN_ID: pool_share.domain_id}
         else:
             target = {'domain_id': pool_share.domain_id}
 

@@ -330,7 +330,6 @@ class CentralAPI:
                          status=status, serial=serial, action=action)
 
     # Shared pools methods
-
     def share_pool(self, context, pool_id, shared_pool):
         return self.client.call(context, 'share_pool', pool_id=pool_id,
                                 shared_pool=shared_pool)

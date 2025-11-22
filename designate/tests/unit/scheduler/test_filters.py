@@ -546,8 +546,8 @@ class DomainIDFilterTest(SchedulerFilterTest):
         mock_storage = mock.Mock()
         mock_storage.find_shared_pools.return_value = []
         test_filter = self.FILTER(storage=mock_storage)
-        pools = test_filter.filter(self.context, cpools, self.zone)
-        self.assertEqual(len(pools), 0)
+        pools = test_filter.filter(domainless_context, cpools, self.zone)
+        self.assertEqual(len(pools), 2)
 
     def test_domain_id_shared_pools(self):
         current_pools = objects.PoolList.from_list(

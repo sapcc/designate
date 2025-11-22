@@ -1,4 +1,4 @@
-# Copyright 2016 Hewlett Packard Enterprise Development Company, L.P.
+# Copyright 2025 Cloudification GmbH. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -13,9 +13,7 @@
 # under the License.
 from oslo_log import log as logging
 
-from designate import exceptions
 from designate import objects
-from designate import policy
 from designate.scheduler.filters import base
 
 LOG = logging.getLogger(__name__)
@@ -49,10 +47,8 @@ class DomainIDFilter(base.Filter):
         """
         pools_list = objects.PoolList()
         if not context.domain_id:
-            return pools_list
+            return pools
         for pool in pools:
-            if not pool.domain_id:
-                continue
             if context.domain_id == pool.domain_id:
                 pools_list.append(pool)
         shared_pool_list = self.storage.find_shared_pools(context)

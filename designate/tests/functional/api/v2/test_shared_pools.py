@@ -1,4 +1,4 @@
-# Copyright 2020 Cloudification GmbH. All rights reserved.
+# Copyright 2025 Cloudification GmbH. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -22,6 +22,7 @@ class ApiV2SharedPoolsTest(v2.ApiV2TestCase):
         self.pool = self.create_pool(domain_id=generate_uuid())
         self.target_domain_id = '2'
         self.endpoint_url = '/pools/{}/shares'
+        self.policy({'admin': '@'})
 
     def _create_valid_shared_pool(self):
         return self.client.post_json(
