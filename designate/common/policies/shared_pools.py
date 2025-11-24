@@ -18,7 +18,7 @@ rules = [
     policy.DocumentedRuleDefault(
         name="get_pool_share",
         check_str=base.RULE_ADMIN,
-        scope_types=['system', 'domain', 'project'],
+        scope_types=['system', 'project'],
         description="Get a Pool Share",
         operations=[
             {
@@ -30,7 +30,7 @@ rules = [
     policy.DocumentedRuleDefault(
         name="share_pool",
         check_str=base.RULE_ADMIN,
-        scope_types=['system', 'domain', 'project'],
+        scope_types=['system', 'project'],
         description="Share a Pool",
         operations=[
             {
@@ -55,13 +55,13 @@ rules = [
     policy.RuleDefault(
         name="find_domain_pool_share",
         check_str=base.RULE_ADMIN,
-        scope_types=['system', 'domain', 'project'],
+        scope_types=['system', 'project'],
         description="Check the can query for a specific domains shares.",
     ),
     policy.DocumentedRuleDefault(
         name="unshare_pool",
         check_str=base.RULE_ADMIN,
-        scope_types=['system', 'domain', 'project'],
+        scope_types=['system', 'project'],
         description="Unshare Pool",
         operations=[
             {

@@ -3571,7 +3571,7 @@ class Service(service.RPCService):
         policy.check('find_pool_shares', context)
 
         if not context.all_tenants and criterion:
-            # Check that they are asking for another projects shares
+            # Check that they are asking for another domain shares
             if policy.enforce_new_defaults():
                 target = {constants.RBAC_DOMAIN_ID: criterion.get(
                     'target_domain_id', context.domain_id)}
