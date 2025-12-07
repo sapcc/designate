@@ -147,7 +147,6 @@ class KeystoneContextMiddleware(ContextMiddleware):
             pass
 
         tenant_id = headers.get('X-Tenant-ID')
-        domain_id = headers.get('X-Domain-ID')
 
         catalog = None
         if headers.get('X-Service-Catalog'):
@@ -163,7 +162,6 @@ class KeystoneContextMiddleware(ContextMiddleware):
                 user_id=headers.get('X-User-ID'),
                 project_id=tenant_id,
                 roles=roles,
-                domain_id=domain_id,
                 service_catalog=catalog,
                 system_scope=system_scope
             )
@@ -222,7 +220,7 @@ class TestContextMiddleware(ContextMiddleware):
             request,
             user_id=headers.get('X-Test-User-ID', self.default_user_id),
             project_id=headers.get('X-Test-Tenant-ID', self.default_tenant_id),
-            domain_id=headers.get('X-Test-Domain-ID', self.default_domain_id),
+            domain_id= self.default_domain_id,
             all_tenants=all_tenants, roles=roles
         )
 
