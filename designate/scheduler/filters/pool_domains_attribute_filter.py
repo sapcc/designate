@@ -13,51 +13,43 @@
 # under the License.
 from oslo_log import log as logging
 
+from designate.exceptions import RelationNotLoaded
 from designate import objects
 from designate.scheduler.filters import base
 
 LOG = logging.getLogger(__name__)
 
 
-class DomainIDFilter(base.Filter):
-    """
+class PoolDomainsAttributeFilter(base.Filter):
 
-    .. warning::
-
-        This should only be enabled if required, as it will raise a
-        403 Forbidden if a user without the correct role uses it.
-    """
-
-    name = 'domain_id'
+    name = 'default_domain_name'
     """Name to enable in the ``[designate:central:scheduler].filters`` option
     list
     """
 
     def filter(self, context, pools, zone):
-        """Attempt to load and set the pool by domain_id  from context.
+        """Attempt to load and set the pool by context domain name
 
         :param context: :class:`designate.context.DesignateContext` - Context
             Object from request
         :param pools: :class:`designate.objects.pool.PoolList` - List of pools
             to choose from
         :param zone: :class:`designate.objects.zone.Zone` - Zone to be created
-        :return: :class:`designate.objects.pool.PoolList` -- A PoolList
+        :return: :class:`designate.objects.pool.PoolList` -- A PoolList with
             containing a single pool.
-        :raises: Forbidden, PoolNotFound
         """
-        pools_list = objects.PoolList()
-        if not context.domain_id:
+        if len(pools) < 2:
             return pools
+        pools_list = objects.PoolList()
         for pool in pools:
-            if context.domain_id == pool.domain_id:
-                pools_list.append(pool)
-        shared_pool_list = self.storage.find_shared_pools(context)
-        if shared_pool_list:
-            for shared_pool in shared_pool_list:
-                if shared_pool.target_domain_id == context.domain_id:
-                    pool = self.storage.get_pool(
-                        context,
-                        shared_pool.pool_id
-                    )
-                    pools_list.append(pool)
+            try:
+                attrs = pool.attributes.to_dict()
+                if "domains" in attrs:
+                    pool_domains = attrs.get("domains").split(",")
+                    if context.domain in pool_domains:
+                        pools_list.append(pool)
+            except RelationNotLoaded:
+                continue
+        if not pools_list:
+            return pools
         return pools_list

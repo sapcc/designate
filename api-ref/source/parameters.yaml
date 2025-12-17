@@ -172,6 +172,13 @@ tsigkey_id:
   required: true
   type: uuid
 
+path_pool_share_id:
+  description: |
+    ID of the pool share.
+  in: path
+  required: true
+  type: uuid
+  min_version: 2.3
 
 ####################
 # Query Variables  #
@@ -653,28 +660,12 @@ project_id:
   required: true
   type: uuid
 
-path_pool_share_id:
-  description: |
-    ID of the pool share.
-  in: path
-  required: true
-  type: uuid
-  min_version: 2.3
-
-shared_pool_id:
+pool_share_id:
   description: |
     ID for the pool being shared.
   in: body
   required: true
   type: uuid
-  min_version: 2.3
-
-pool_shared:
-  description: |
-    True if the pool is shared with another domain.
-  in: body
-  required: true
-  type: bool
   min_version: 2.3
 
 recordset_description:

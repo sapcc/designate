@@ -46,7 +46,7 @@ Response Parameters
 
    - x-openstack-request-id: x-openstack-request-id
    - id: id
-   - pool_id: shared_pool_id
+   - pool_id: pool_share_id
    - domain_id: domain_id
    - target_domain_id: target_domain_id
    - created_at: created_at
@@ -100,7 +100,7 @@ Response Parameters
 
    - x-openstack-request-id: x-openstack-request-id
    - id: id
-   - pool_id: shared_pool_id
+   - pool_id: pool_share_id
    - domain_id: domain_id
    - target_domain_id: target_domain_id
    - created_at: created_at
@@ -160,7 +160,7 @@ Response Parameters
 
    - x-openstack-request-id: x-openstack-request-id
    - id: id
-   - pool_id: shared_pool_id
+   - pool_id: pool_share_id
    - domain_id: domain_id
    - target_domain_id: target_domain_id
    - created_at: created_at

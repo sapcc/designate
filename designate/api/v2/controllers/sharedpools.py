@@ -37,7 +37,7 @@ class SharedPoolsController(rest.RestController):
                 context, pool_id, pool_share_id)
 
         LOG.info(
-            "Retrieved %(pool)s",
+            "Retrieved shared %(pool)s",
             {"pool": pool}
         )
 
@@ -64,7 +64,7 @@ class SharedPoolsController(rest.RestController):
         shared_pools = self.central_api.find_shared_pools(
             context, criterion, marker, limit, sort_key, sort_dir)
 
-        LOG.info("Retrieved %(shared_pools)s", {'shared_pools': shared_pools})
+        LOG.info("Retrieved shared %(shared_pools)s", {'shared_pools': shared_pools})
 
         return DesignateAdapter.render('API_v2', shared_pools, request=request)
 
@@ -77,9 +77,9 @@ class SharedPoolsController(rest.RestController):
         context = request.environ['context']
 
         payload = request.body_dict
-
+        target_domain_id = payload.get('target_domain_id', None)
         keystone.verify_domain_id(
-            context, payload.get('target_domain_id', None)
+            context, target_domain_id
         )
 
         pool_share = DesignateAdapter.parse('API_v2', payload, SharedPool())
@@ -89,8 +89,10 @@ class SharedPoolsController(rest.RestController):
         response.status_int = 201
 
         LOG.info(
-            "Shared pool %(shared_pool)s",
-            {'shared_pool': pool_share}
+            "Shared pool %(shared_pool)s"
+            " and target domain id %(target_domain_id)",
+            {'shared_pool': pool_share,
+             'target_domain_id': target_domain_id}
         )
 
         return DesignateAdapter.render(

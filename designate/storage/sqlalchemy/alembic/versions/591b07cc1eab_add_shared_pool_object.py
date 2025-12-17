@@ -21,9 +21,8 @@ from oslo_utils import uuidutils
 
 
 from alembic import op
-import sqlalchemy as sa
 from designate.storage.sqlalchemy.types import UUID
-from designate.storage.sqlalchemy.alembic import legacy_utils
+import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.

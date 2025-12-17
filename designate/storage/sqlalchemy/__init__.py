@@ -2739,9 +2739,9 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         return self._create(tables.shared_pools, shared_pool,
                             exceptions.DuplicateSharedPool)
 
-    def unshare_pool(self, context, pool_id, shared_pool_id):
+    def unshare_pool(self, context, pool_id, pool_share_id):
         shared_pool = self._find_shared_pools(
-            context, {'id': shared_pool_id, 'pool_id': pool_id}, one=True
+            context, {'id': pool_share_id, 'pool_id': pool_id}, one=True
         )
         return self._delete(context, tables.shared_pools, shared_pool,
                             exceptions.SharedPoolNotFound)
@@ -2753,9 +2753,9 @@ class SQLAlchemyStorage(base.SQLAlchemy):
             limit=limit, sort_key=sort_key, sort_dir=sort_dir
         )
 
-    def get_shared_pool(self, context, pool_id, shared_pool_id):
+    def get_shared_pool(self, context, pool_id, pool_share_id):
         return self._find_shared_pools(
-            context, {'id': shared_pool_id, 'pool_id': pool_id}, one=True
+            context, {'id': pool_share_id, 'pool_id': pool_id}, one=True
         )
 
     def is_pool_shared_with_domain(self, pool_id, domain_id):

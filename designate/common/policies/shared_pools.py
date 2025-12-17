@@ -65,7 +65,7 @@ rules = [
         description="Unshare Pool",
         operations=[
             {
-                'path': '/v2/pools/{pool_id}/shares/{shared_pool_id}',
+                'path': '/v2/pools/{pool_id}/shares/{pool_share_id}',
                 'method': 'DELETE'
             }
         ],

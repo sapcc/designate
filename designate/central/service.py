@@ -2586,10 +2586,34 @@ class Service(service.RPCService):
 
     @rpc.expected_exceptions()
     def get_pool(self, context, pool_id):
+        pool = self.storage.get_pool(context, pool_id)
 
-        policy.check('get_pool', context)
+        pool_shared = False
+        if (context.domain_id != pool.domain_id) and not context.all_tenants:
+            pool_shared = self.storage.is_pool_shared_with_domain(
+                pool_id, context.domain_id)
+            if not pool_shared:
+                raise exceptions.PoolNotFound(
+                    "Could not find %s" % pool.obj_name())
 
-        return self.storage.get_pool(context, pool_id)
+        # TODO(johnsom) This should account for all-projects context
+        # it passes today due to ADMIN
+        if policy.enforce_new_defaults():
+            target = {
+                'pool_id': pool_id,
+                'pool_name': pool.name,
+                'pool_shared': pool_shared,
+                constants.RBAC_DOMAIN_ID: pool.domain_id
+            }
+        else:
+            target = {
+                'pool_id': pool_id,
+                'pool_name': pool.name,
+                'pool_shared': pool_shared,
+                'domain_id': pool.domain_id
+            }
+        policy.check('get_pool', context, target)
+        return pool
 
     @rpc.expected_exceptions()
     @notification.notify_type('dns.pool.update')
