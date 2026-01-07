@@ -3551,7 +3551,7 @@ class Service(service.RPCService):
         domain_id = pool.domain_id
         if not domain_id:
             raise exceptions.PoolWithoutDomainId(
-                f"Pool {pool_id} doesn't have domain_id"
+                f"Pool {pool_id} doesn't have domain_id "
                 f"Specify domain_id in pools.yaml.")
         if policy.enforce_new_defaults():
             target = {constants.RBAC_DOMAIN_ID: domain_id}
