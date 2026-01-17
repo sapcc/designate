@@ -2594,7 +2594,7 @@ class Service(service.RPCService):
                 pool_id, context.domain_id)
             if not pool_shared:
                 raise exceptions.PoolNotFound(
-                    "Could not find %s" % pool.obj_name())
+                    "Could not find pool %s" % pool.obj_name())
 
         # TODO(johnsom) This should account for all-projects context
         # it passes today due to ADMIN

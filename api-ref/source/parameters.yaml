@@ -87,6 +87,14 @@ path_pool_id:
   required: true
   type: uuid
 
+path_pool_share_id:
+  description: |
+    ID of the pool share.
+  in: path
+  required: true
+  type: uuid
+  min_version: 2.3
+
 path_project_id:
   description: |
     ID for the project
@@ -171,14 +179,6 @@ tsigkey_id:
   in: path
   required: true
   type: uuid
-
-path_pool_share_id:
-  description: |
-    ID of the pool share.
-  in: path
-  required: true
-  type: uuid
-  min_version: 2.3
 
 ####################
 # Query Variables  #
@@ -497,6 +497,13 @@ description:
   required: true
   type: string
 
+domain_id:
+  description: |
+    ID for the domain that owns the resource
+  in: body
+  required: true
+  type: uuid
+
 floatingip_address:
   description: |
     The floatingip address for this PTR record.
@@ -769,6 +776,14 @@ status:
   in: body
   required: true
   type: enum
+
+target_domain_id:
+  description: |
+    The project ID the zone will be shared with.
+  in: body
+  required: true
+  type: string
+  min_version: 2.3
 
 target_project_id:
   description: |

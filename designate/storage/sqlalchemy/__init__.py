@@ -2763,4 +2763,5 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         query = query.where(tables.shared_pools.c.pool_id == pool_id)
         query = query.where(
             tables.shared_pools.c.target_domain_id == domain_id)
-        return self.session.scalar(query) is not None
+        with sql.get_read_session() as session:
+            return session.scalar(query) is not None
