@@ -766,7 +766,6 @@ class TestCase(base.BaseTestCase):
                     values['domain_id'] = context.domain
             else:
                 values['domain_id'] = context.domain_id
-
         return self.central_service.create_pool(
             context, objects.Pool.from_dict(values))
 

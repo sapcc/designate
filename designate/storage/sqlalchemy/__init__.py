@@ -1374,10 +1374,19 @@ class SQLAlchemyStorage(base.SQLAlchemy):
     # Pool methods
     def _find_pools(self, context, criterion, one=False, marker=None,
                     limit=None, sort_key=None, sort_dir=None):
+
+        # Create a virtual column showing if the zone is shared or not.
+        shared_case = case((tables.shared_pools.c.target_domain_id.is_(None),
+                            literal_column('False')),
+                           else_=literal_column('True')).label('shared')
+        query = select(
+            tables.pools,
+            shared_case).outerjoin(tables.shared_pools).distinct()
+
         pools = self._find(context, tables.pools, objects.Pool,
                            objects.PoolList, exceptions.PoolNotFound,
                            criterion, one, marker, limit, sort_key,
-                           sort_dir)
+                           sort_dir, query=query)
 
         # Load Relations
         def _load_relations(pool):
@@ -1506,6 +1515,7 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         :param sort_key: Key used to sort the returned list
         :param sort_dir: Directions to sort after using sort_key
         """
+
         return self._find_pools(context, criterion, marker=marker,
                                 limit=limit, sort_key=sort_key,
                                 sort_dir=sort_dir)
