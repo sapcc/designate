@@ -104,7 +104,7 @@ rules = [
     policy.DocumentedRuleDefault(
         name="get_pool",
         check_str=base.SYSTEM_READER,
-        scope_types=[constants.PROJECT],
+        scope_types=[constants.PROJECT, constants.DOMAIN],
         description='Get pool.',
         operations=[
             {

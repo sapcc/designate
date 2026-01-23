@@ -59,6 +59,7 @@ VALID_QUOTAS = [QUOTA_API_EXPORT_SIZE, QUOTA_RECORDSET_RECORDS,
 
 # RBAC scopes
 PROJECT = 'project'
+DOMAIN = 'domain'
 
 # Zone constants
 ZONE_PRIMARY = 'PRIMARY'

@@ -17,15 +17,20 @@ import copy
 
 from keystoneauth1.access import service_catalog as ksa_service_catalog
 from keystoneauth1 import plugin
+from keystoneauth1 import session
+from keystoneclient.v3 import client as ks_client
+from oslo_config import cfg
 from oslo_context import context
 from oslo_log import log as logging
 
 from designate import policy
 
+CONF = cfg.CONF
 LOG = logging.getLogger(__name__)
 
 
 class DesignateContext(context.RequestContext):
+    _cache_region = None
 
     _all_tenants = False
     _hide_counts = False
@@ -67,6 +72,7 @@ class DesignateContext(context.RequestContext):
         self.delete_shares = delete_shares
         self.project_domain_name = project_domain_name
         self.domain_id = domain_id
+
     def deepcopy(self):
         return self.from_dict(self.to_dict())
 
@@ -227,15 +233,51 @@ class DesignateContext(context.RequestContext):
     def domain_id(self):
         return self._domain_id
 
-    @project_domain_name.setter
+    @domain_id.setter
     def domain_id(self, value):
         self._domain_id = value
-
 
     def get_auth_plugin(self):
         if self.user_auth_plugin:
             return self.user_auth_plugin
         return _ContextAuthPlugin(self.auth_token, self.service_catalog)
+
+    @classmethod
+    def from_environ(cls, environ):
+        ctxt = super(DesignateContext, cls).from_environ(environ)
+        # Pick up domain_id injected by DomainResolverFromTokenMiddleware
+        ctxt.domain_id = environ.get("HTTP_X_DOMAIN_ID")
+        return ctxt
+
+    def resolve_domain_id(self, domain_name):
+        if not domain_name:
+            return None
+
+        if "keystone_authtoken" not in CONF.list_all_sections():
+            LOG.warning(
+                "[resolve_domain_id] Skipping Keystone lookup: "
+                "no [keystone_authtoken] group in config (likely in tests)"
+            )
+            return None
+
+        auth_group = getattr(CONF, "keystone_authtoken", None)
+        auth_url = getattr(auth_group, "auth_url", None)
+        if not auth_url:
+            LOG.warning("[resolve_domain_id] Missing auth_url in [keystone_authtoken]")
+            return None
+        try:
+            sess = session.Session()
+            ks = ks_client.Client(session=sess, endpoint=auth_url)
+            domains = ks.domains.list(name=domain_name)
+            if not domains:
+                LOG.warning(f"Domain '{domain_name}' not found in Keystone")
+                return None
+            resolved_id = domains[0].id
+            LOG.debug(f"Resolved domain_name={domain_name} -> domain_id={resolved_id}")
+            return resolved_id
+        except Exception as e:
+            LOG.error(f"Keystone lookup failed: {e}")
+            return None
 
 
 class _ContextAuthPlugin(plugin.BaseAuthPlugin):

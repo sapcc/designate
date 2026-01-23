@@ -48,6 +48,7 @@ class DomainIDFilter(base.Filter):
         pools_list = objects.PoolList()
         if not context.domain_id:
             return pools
+        LOG.debug(f"Filtering pools for domain_id={context.domain_id}")
         for pool in pools:
             if context.domain_id == pool.domain_id:
                 pools_list.append(pool)
@@ -60,4 +61,7 @@ class DomainIDFilter(base.Filter):
                         shared_pool.pool_id
                     )
                     pools_list.append(pool)
+        LOG.debug(f"Matched {len(pools_list)} pools for domain {context.domain_id}")
+        if not pools_list:
+            LOG.warning(f"No matching pools for domain_id={context.domain_id}")
         return pools_list
