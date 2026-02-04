@@ -1376,16 +1376,16 @@ class SQLAlchemyStorage(base.SQLAlchemy):
                     limit=None, sort_key=None, sort_dir=None):
 
         # Create a virtual column showing if the pool is shared or not.
-        shared_case = case((tables.shared_pools.c.target_domain_id.is_(None),
-                            literal_column('False')),
-                           else_=literal_column('True')).label('shared')
-        query = select(
-            tables.pools,
-            shared_case).outerjoin(tables.shared_pools).distinct()
+        shared_case = case(
+            (tables.shared_pools.c.target_domain_id.is_(None), literal_column('False')),
+            else_=literal_column('True')
+        ).label('shared')
+
+        query = select(tables.pools, shared_case).distinct()
         pools = self._find(context, tables.pools, objects.Pool,
                            objects.PoolList, exceptions.PoolNotFound,
                            criterion, one, marker, limit, sort_key,
-                           sort_dir, query=query)
+                           sort_dir, query=query, include_shared=True)
 
         # Load Relations
         def _load_relations(pool):
