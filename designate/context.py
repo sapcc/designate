@@ -263,7 +263,9 @@ class DesignateContext(context.RequestContext):
         auth_group = getattr(CONF, "keystone_authtoken", None)
         auth_url = getattr(auth_group, "auth_url", None)
         if not auth_url:
-            LOG.warning("[resolve_domain_id] Missing auth_url in [keystone_authtoken]")
+            LOG.warning(
+                "[resolve_domain_id] Missing auth_url in [keystone_authtoken]"
+            )
             return None
         try:
             sess = session.Session()
@@ -272,8 +274,16 @@ class DesignateContext(context.RequestContext):
             if not domains:
                 LOG.warning(f"Domain '{domain_name}' not found in Keystone")
                 return None
+            if len(domains) != 1:
+                LOG.warning(
+                    "Not able determine domain id by name or "
+                    f"multiple domains found with name {domain_name}"
+                )
+                return None
             resolved_id = domains[0].id
-            LOG.debug(f"Resolved domain_name={domain_name} -> domain_id={resolved_id}")
+            LOG.debug(
+                f"Resolved domain_name={domain_name} domain_id={resolved_id}"
+            )
             return resolved_id
         except Exception as e:
             LOG.error(f"Keystone lookup failed: {e}")
