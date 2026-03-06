@@ -286,7 +286,8 @@ class DesignateContext(context.RequestContext):
             )
             return resolved_id
         except Exception as e:
-            LOG.error(f"Keystone lookup failed: {e}")
+            LOG.error(
+                f"Keystone lookup failed for domain {domain_name}: {e}")
             return None
 
 
