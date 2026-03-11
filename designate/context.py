@@ -229,14 +229,6 @@ class DesignateContext(context.RequestContext):
     def project_domain_name(self, value):
         self._project_domain_name = value
 
-    @property
-    def domain_id(self):
-        return self._domain_id
-
-    @domain_id.setter
-    def domain_id(self, value):
-        self._domain_id = value
-
     def get_auth_plugin(self):
         if self.user_auth_plugin:
             return self.user_auth_plugin
@@ -290,6 +282,19 @@ class DesignateContext(context.RequestContext):
                 f"Keystone lookup failed for domain {domain_name}: {e}")
             return None
 
+    def ensure_domain_id(self):
+        if not self.domain_id:
+            LOG.warning("Domain ID missing in context. Resolving default domain.")
+
+            default_domain = getattr(CONF, "default_domain_name", "Default")
+            self.domain_id = self.resolve_domain_id(default_domain)
+
+            LOG.info(
+                "Resolved default domain '%s' into %s",
+                default_domain,
+                self.domain_id
+            )
+        return self.domain_id
 
 class _ContextAuthPlugin(plugin.BaseAuthPlugin):
     """A keystoneauth auth plugin that uses the values from the Context.
