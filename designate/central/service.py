@@ -2603,12 +2603,16 @@ class Service(service.RPCService):
     def get_pool(self, context, pool_id):
         pool = self.storage.get_pool(context, pool_id)
         pool_shared = False
-        if context.domain_id and (context.domain_id != pool.domain_id):
+        if not context.is_admin and context.domain_id and (
+                context.domain_id != pool.domain_id
+        ):
             pool_shared = self.storage.is_pool_shared_with_domain(
                 pool_id, context.domain_id)
+
             if not pool_shared:
                 raise exceptions.PoolNotFound(
-                    "Pool isn't allowed for domain %r: %r" % (context.domain_id, pool))
+                    "Pool isn't allowed for domain %r: %r" %
+                    (context.domain_id, pool))
         target = {
             'pool_id': pool_id,
             'pool_name': pool.name,
