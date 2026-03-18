@@ -286,6 +286,9 @@ class DesignateContext(context.RequestContext):
         """
         Fallback method in case when domain_id from RequestContext come
          as None and keystonemiddleware not used.
+        It's needed in case of shared pools because to create zone
+        need to use project scope token where is domain_id field is
+        not filled and it helps to fill domain_id.
         """
         if not self.domain_id:
             LOG.warning(
