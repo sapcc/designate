@@ -24,11 +24,11 @@ from designate import objects
 from designate import policy
 from designate.scheduler.filters import attribute_filter
 from designate.scheduler.filters import default_pool_filter
+from designate.scheduler.filters import domain_id_filter
 from designate.scheduler.filters import fallback_filter
 from designate.scheduler.filters import in_doubt_default_pool_filter
-from designate.scheduler.filters import pool_id_attribute_filter
-from designate.scheduler.filters import domain_id_filter
 from designate.scheduler.filters import pool_domains_attribute_filter
+from designate.scheduler.filters import pool_id_attribute_filter
 
 
 class SchedulerFilterTest(oslotest.base.BaseTestCase):
@@ -563,7 +563,7 @@ class DomainIDFilterTest(SchedulerFilterTest):
                 {'target_domain_id': 'test',
                  "pool_id": "5fabcd37-262c-4cf3-8625-7f419434b6df",
                  "domain_id": "default"},
-            ])
+        ])
         mock_storage.get_pool.return_value = current_pools[1]
         test_filter = self.FILTER(storage=mock_storage)
         pools = test_filter.filter(self.context, current_pools, self.zone)
@@ -586,7 +586,7 @@ class DomainIDFilterTest(SchedulerFilterTest):
                 {'target_domain_id': 'test',
                  "pool_id": "6c346011-e581-429b-a7a2-6cdf0aba91c3",
                  "domain_id": "default"},
-            ])
+        ])
         mock_storage.get_pool.return_value = pools[0]
         test_filter = self.FILTER(storage=mock_storage)
         pools = test_filter.filter(self.context, pools, self.zone)
