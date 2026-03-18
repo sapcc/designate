@@ -790,17 +790,6 @@ class Service(service.RPCService):
         # Ensure domain_id is present in context
         if hasattr(context, "ensure_domain_id"):
             context.ensure_domain_id()
-        # if not getattr(context, "domain_id", None):
-        #     LOG.warning(f"Domain ID missing in context for zone {zone.name}. "
-        #                 "Falling back to default domain resolution.")
-        #     # Optionally resolve it using DesignateContext helper
-        #     if hasattr(context, "resolve_domain_id"):
-        #         default_domain = getattr(CONF, "default_domain_name", "Default")
-        #         context.domain_id = context.resolve_domain_id(default_domain)
-        #         LOG.info(f"Resolved default domain '{default_domain}' into"
-        #                  f"{context.domain_id}")
-        #     else:
-        #         raise exceptions.BadRequest("Domain ID not found in context")
 
         # Get a pool id
         zone.pool_id = self.scheduler.schedule_zone(context, zone)
@@ -2610,7 +2599,7 @@ class Service(service.RPCService):
                 pool_id, context.domain_id)
 
             if not pool_shared:
-                raise exceptions.PoolNotFound(
+                raise exceptions.SharedPoolNotFound(
                     "Pool isn't allowed for domain %r: %r" %
                     (context.domain_id, pool))
         target = {

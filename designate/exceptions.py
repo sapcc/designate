@@ -438,6 +438,10 @@ class PoolNotFound(NotFound):
     error_type = 'pool_not_found'
 
 
+class SharedPoolNotFound(NotFound):
+    error_type = 'shared_pool_not_found'
+
+
 class NoValidPoolFound(NotFound):
     error_type = 'no_valid_pool_found'
 

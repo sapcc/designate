@@ -283,8 +283,14 @@ class DesignateContext(context.RequestContext):
             return None
 
     def ensure_domain_id(self):
+        """
+        Fallback method in case when domain_id from RequestContext come
+         as None and keystonemiddleware not used.
+        """
         if not self.domain_id:
-            LOG.warning("Domain ID missing in context. Resolving default domain.")
+            LOG.warning(
+                "Domain ID missing in context. Resolving default domain."
+            )
 
             default_domain = getattr(CONF, "default_domain_name", "Default")
             self.domain_id = self.resolve_domain_id(default_domain)
@@ -295,6 +301,7 @@ class DesignateContext(context.RequestContext):
                 self.domain_id
             )
         return self.domain_id
+
 
 class _ContextAuthPlugin(plugin.BaseAuthPlugin):
     """A keystoneauth auth plugin that uses the values from the Context.
