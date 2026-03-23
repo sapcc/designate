@@ -517,10 +517,6 @@ class ZoneShared(DesignateException):
     error_type = 'zone_is_shared'
 
 
-class SharedPoolNotFound(NotFound):
-    error_type = 'shared_pool_not_found'
-
-
 class DuplicateSharedPool(Duplicate):
     error_type = 'duplicate_shared_pool'
 
