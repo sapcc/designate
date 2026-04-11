@@ -35,8 +35,8 @@ class PoolDomainsAttributeFilter(base.Filter):
         :param pools: :class:`designate.objects.pool.PoolList` - List of pools
             to choose from
         :param zone: :class:`designate.objects.zone.Zone` - Zone to be created
-        :return: :class:`designate.objects.pool.PoolList` -- A PoolList with
-            containing a single pool.
+        :return: :class:`designate.objects.pool.PoolList` -- A PoolList
+        containing a single pool.
         """
         if len(pools) < 2:
             return pools
