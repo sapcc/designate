@@ -64,9 +64,12 @@ class SharedPoolsController(rest.RestController):
         shared_pools = self.central_api.find_shared_pools(
             context, criterion, marker, limit, sort_key, sort_dir)
 
-        LOG.info("Retrieved shared %(shared_pools)s", {'shared_pools': shared_pools})
+        LOG.info("Retrieved shared %(shared_pools)s",
+                 {'shared_pools': shared_pools})
 
-        return DesignateAdapter.render('API_v2', shared_pools, request=request)
+        return DesignateAdapter.render(
+            'API_v2', shared_pools, request=request
+        )
 
     @pecan.expose(template='json:', content_type='application/json')
     @utils.validate_uuid('pool_id')

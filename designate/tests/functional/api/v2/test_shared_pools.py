@@ -12,7 +12,7 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 from designate.tests.functional.api import v2
-from oslo_utils.uuidutils import  generate_uuid
+from oslo_utils.uuidutils import generate_uuid
 
 
 class ApiV2SharedPoolsTest(v2.ApiV2TestCase):

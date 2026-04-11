@@ -15,7 +15,8 @@
 from oslo_log import log as logging
 import pecan
 
-from designate.api.v2.controllers import rest, sharedpools
+from designate.api.v2.controllers import rest
+from designate.api.v2.controllers import sharedpools
 from designate.objects.adapters import DesignateAdapter
 from designate.objects import Pool
 from designate import utils

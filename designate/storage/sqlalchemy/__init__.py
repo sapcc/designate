@@ -1377,7 +1377,8 @@ class SQLAlchemyStorage(base.SQLAlchemy):
 
         # Create a virtual column showing if the pool is shared or not.
         shared_case = case(
-            (tables.shared_pools.c.target_domain_id.is_(None), literal_column('False')),
+            (tables.shared_pools.c.target_domain_id.is_(None),
+             literal_column('False')),
             else_=literal_column('True')
         ).label('shared')
 

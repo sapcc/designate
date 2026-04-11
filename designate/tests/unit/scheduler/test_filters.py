@@ -559,7 +559,7 @@ class DomainIDFilterTest(SchedulerFilterTest):
             ]
         )
         mock_storage = mock.Mock()
-        mock_storage.find_shared_pools.return_value = objects.SharedPoolList.from_list([
+        mock_storage.find_shared_pools.return_value = objects.SharedPoolList.from_list([ # noqa
                 {'target_domain_id': 'test',
                  "pool_id": "5fabcd37-262c-4cf3-8625-7f419434b6df",
                  "domain_id": "default"},
@@ -582,7 +582,7 @@ class DomainIDFilterTest(SchedulerFilterTest):
             ]
         )
         mock_storage = mock.Mock()
-        mock_storage.find_shared_pools.return_value = objects.SharedPoolList.from_list([
+        mock_storage.find_shared_pools.return_value = objects.SharedPoolList.from_list([  # noqa
                 {'target_domain_id': 'test',
                  "pool_id": "6c346011-e581-429b-a7a2-6cdf0aba91c3",
                  "domain_id": "default"},
