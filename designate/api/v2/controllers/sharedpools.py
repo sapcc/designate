@@ -37,7 +37,7 @@ class SharedPoolsController(rest.RestController):
                 context, pool_id, pool_share_id)
 
         LOG.info(
-            "Retrieved shared %(pool)s",
+            "Retrieved Shared Pools %(pool)s",
             {"pool": pool}
         )
 
@@ -64,7 +64,7 @@ class SharedPoolsController(rest.RestController):
         shared_pools = self.central_api.find_shared_pools(
             context, criterion, marker, limit, sort_key, sort_dir)
 
-        LOG.info("Retrieved shared %(shared_pools)s",
+        LOG.info("Retrieved Shared Pools %(shared_pools)s",
                  {'shared_pools': shared_pools})
 
         return DesignateAdapter.render(
