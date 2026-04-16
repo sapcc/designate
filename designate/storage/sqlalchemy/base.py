@@ -261,11 +261,31 @@ class SQLAlchemy(metaclass=abc.ABCMeta):
         if query is None:
             query = select(table)
         query = self._apply_criterion(table, query, criterion)
-        if apply_tenant_criteria:
-            query = self._apply_tenant_criteria(context, table, query,
-                                                include_shared=include_shared)
+        if apply_tenant_criteria and table is not tables.pools:
+            query = self._apply_tenant_criteria(
+                context, table, query, include_shared=include_shared
+            )
+
         query = self._apply_deleted_criteria(context, table, query)
 
+        # Custom domain-aware pool logic
+        if table is tables.pools and include_shared:
+            domain_id = getattr(context, "domain_id", None)
+
+            query = query.outerjoin(
+                tables.shared_pools,
+                tables.shared_pools.c.pool_id == tables.pools.c.id
+            )
+
+            if domain_id:
+                query = query.where(
+                    or_(
+                        tables.shared_pools.c.target_domain_id == domain_id,
+                        tables.shared_pools.c.target_domain_id.is_(None)
+                    )
+                )
+
+            query = query.distinct()
         # Execute the Query
         if one:
             # NOTE(kiall): If we expect one value, and two rows match, we raise

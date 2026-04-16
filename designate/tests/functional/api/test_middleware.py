@@ -59,6 +59,7 @@ class KeystoneContextMiddlewareTest(designate.tests.functional.TestCase):
             'X-Auth-Token': 'AuthToken',
             'X-User-ID': 'UserID',
             'X-Tenant-ID': 'TenantID',
+            'X-Domain-ID': 'DomainID',
             'X-Roles': 'admin,Member',
             'X-Identity-Status': 'Valid'
         }
@@ -85,6 +86,7 @@ class KeystoneContextMiddlewareTest(designate.tests.functional.TestCase):
             'X-Auth-Token': 'AuthToken',
             'X-User-ID': 'UserID',
             'X-Tenant-ID': 'TenantID',
+            'X-Domain-ID': 'DomainID',
             'X-Roles': 'admin,Member',
             'X-Service-Catalog': '{"test": "value"}'
         }
@@ -108,6 +110,7 @@ class KeystoneContextMiddlewareTest(designate.tests.functional.TestCase):
             'X-Auth-Token': 'AuthToken',
             'X-User-ID': 'UserID',
             'X-Tenant-ID': 'TenantID',
+            'X-Domain-ID': 'DomainID',
             'X-Roles': 'admin,Member',
             'X-Identity-Status': 'Invalid'
         }
@@ -126,6 +129,7 @@ class KeystoneContextMiddlewareTest(designate.tests.functional.TestCase):
             'X-Auth-Token': 'AuthToken',
             'X-User-ID': 'UserID',
             'X-Tenant-ID': None,
+            'X-Domain-ID': 'DomainID',
             'X-Roles': 'admin,Member',
         }
 

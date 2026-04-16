@@ -188,7 +188,8 @@ class NoAuthContextMiddleware(ContextMiddleware):
 
 
 class TestContextMiddleware(ContextMiddleware):
-    def __init__(self, application, tenant_id=None, user_id=None):
+    def __init__(self, application, tenant_id=None,
+                 user_id=None, domain_id=None):
         super().__init__(application)
 
         LOG.critical('Starting designate testcontext middleware')
@@ -196,6 +197,7 @@ class TestContextMiddleware(ContextMiddleware):
 
         self.default_tenant_id = tenant_id
         self.default_user_id = user_id
+        self.default_domain_id = domain_id
 
     def process_request(self, request):
         headers = request.headers
@@ -218,8 +220,10 @@ class TestContextMiddleware(ContextMiddleware):
         self.make_context(
             request,
             user_id=headers.get('X-Test-User-ID', self.default_user_id),
-            project_id=headers.get('X-Test-Tenant-ID', self.default_tenant_id),
-            all_tenants=all_tenants, roles=roles
+            project_id=headers.get('X-Test-Tenant-ID',
+                                   self.default_tenant_id),
+            domain_id=self.default_domain_id, all_tenants=all_tenants,
+            roles=roles
         )
 
 

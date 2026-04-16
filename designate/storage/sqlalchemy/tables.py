@@ -304,6 +304,7 @@ pools = Table('pools', metadata,
     Column('name', String(50), nullable=False, unique=True),
     Column('description', Unicode(160), nullable=True),
     Column('tenant_id', String(36), nullable=True),
+    Column('domain_id', String(36), nullable=True),
     Column('provisioner', Enum(name='pool_provisioner', *POOL_PROVISIONERS),
            nullable=False, server_default='UNMANAGED'),
 
@@ -497,3 +498,20 @@ zone_tasks = Table('zone_tasks', metadata,
 
     mysql_engine='InnoDB',
     mysql_charset='utf8')
+
+shared_pools = Table(
+    'shared_pools', metadata,
+    Column('id', UUID, default=uuidutils.generate_uuid, primary_key=True),
+    Column('created_at', DateTime, default=lambda: timeutils.utcnow()),
+    Column('updated_at', DateTime, onupdate=lambda: timeutils.utcnow()),
+    Column('pool_id', UUID, nullable=False),
+    Column('domain_id', String(36), nullable=False),
+    Column('target_domain_id', String(36), nullable=False),
+
+    UniqueConstraint('pool_id', 'domain_id', 'target_domain_id',
+                     name='unique_shared_pool'),
+    ForeignKeyConstraint(('pool_id',), ['pools.id'], ondelete='CASCADE'),
+
+    mysql_engine='InnoDB',
+    mysql_charset='utf8'
+)

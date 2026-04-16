@@ -106,6 +106,7 @@ class ZonesController(rest.RestController):
             project_info = token['project']
             domain_info = project_info['domain']
             context.project_domain_name = domain_info['name']
+            context.domain_id = domain_info['id']
         except KeyError:
             LOG.error('Not able to find Keystone domain name when '
                       'creating a zone: %s', zone.name)
