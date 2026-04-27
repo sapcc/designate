@@ -787,10 +787,6 @@ class Service(service.RPCService):
         # Ensure TTL is above the minimum
         self._is_valid_ttl(context, zone.ttl)
 
-        # Ensure domain_id is present in context
-        if hasattr(context, "ensure_domain_id"):
-            context.ensure_domain_id()
-
         # Get a pool id
         zone.pool_id = self.scheduler.schedule_zone(context, zone)
 
