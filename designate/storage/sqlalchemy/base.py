@@ -268,20 +268,24 @@ class SQLAlchemy(metaclass=abc.ABCMeta):
 
         query = self._apply_deleted_criteria(context, table, query)
 
-        # Custom domain-aware pool logic
+        # Custom domain-aware pool logic.
+        # Uses project_domain_id (domain of the user's project) to filter
+        # pools: returns pools owned by this domain plus pools shared with it.
         if table is tables.pools and include_shared:
-            domain_id = getattr(context, "domain_id", None)
+            project_domain_id = getattr(context, "project_domain_id", None)
 
             query = query.outerjoin(
                 tables.shared_pools,
                 tables.shared_pools.c.pool_id == tables.pools.c.id
             )
 
-            if domain_id:
+            if project_domain_id and not getattr(context, 'is_admin', False):
+                shared = tables.shared_pools.c.target_domain_id
                 query = query.where(
                     or_(
-                        tables.shared_pools.c.target_domain_id == domain_id,
-                        tables.shared_pools.c.target_domain_id.is_(None)
+                        shared == project_domain_id,
+                        tables.pools.c.domain_id == project_domain_id,
+                        tables.pools.c.domain_id.is_(None),
                     )
                 )
 

@@ -513,13 +513,36 @@ class SchedulerInDoubtDefaultPoolFilterTest(SchedulerFilterTest):
 
         self.assertEqual(len(pools), 2)
 
+    def test_no_duplicate_when_pool_owned_and_shared(self):
+        pool_id = '6c346011-e581-429b-a7a2-6cdf0aba91c3'
+        current_pools = objects.PoolList.from_list([
+            {'id': pool_id, 'domain_id': 'test'},
+        ])
+        shared_pool_obj = objects.Pool.from_dict(
+            {'id': pool_id, 'domain_id': 'test'}
+        )
+        mock_storage = mock.Mock()
+        mock_storage.find_shared_pools.return_value = (
+            objects.SharedPoolList.from_list([{
+                'target_domain_id': 'test',
+                'pool_id': pool_id,
+                'domain_id': 'test',
+            }])
+        )
+        mock_storage.get_pool.return_value = shared_pool_obj
+        test_filter = self.FILTER(storage=mock_storage)
+        result = test_filter.filter(self.context, current_pools, self.zone)
+
+        self.assertEqual(1, len(result))
+        self.assertEqual(pool_id, result[0].id)
+
 
 class DomainIDFilterTest(SchedulerFilterTest):
     FILTER = domain_id_filter.DomainIDFilter
 
     def setUp(self):
         super().setUp()
-        self.context.domain_id = 'test'
+        self.context.project_domain_id = 'test'
 
     def test_pools_default_no_shared_pools(self):
         current_pools = objects.PoolList.from_list(
@@ -545,7 +568,7 @@ class DomainIDFilterTest(SchedulerFilterTest):
             ]
         )
         domainless_context = mock.Mock()
-        domainless_context.domain_id = None
+        domainless_context.project_domain_id = None
         mock_storage = mock.Mock()
         mock_storage.find_shared_pools.return_value = []
         test_filter = self.FILTER(storage=mock_storage)
@@ -560,7 +583,7 @@ class DomainIDFilterTest(SchedulerFilterTest):
             ]
         )
         mock_storage = mock.Mock()
-        mock_storage.find_shared_pools.return_value = objects.SharedPoolList.from_list([ # noqa
+        mock_storage.find_shared_pools.return_value = objects.SharedPoolList.from_list([  # noqa
                 {'target_domain_id': 'test',
                  "pool_id": "5fabcd37-262c-4cf3-8625-7f419434b6df",
                  "domain_id": "default"},
@@ -573,7 +596,7 @@ class DomainIDFilterTest(SchedulerFilterTest):
         self.assertEqual(current_pools[1].id, pools[0].id)
 
     def test_domain_id_shared_pools_and_pools(self):
-        self.context.domain_id = "test"
+        self.context.project_domain_id = "test"
         pools = objects.PoolList.from_list(
             [
                 {'id': '6c346011-e581-429b-a7a2-6cdf0aba91c3',

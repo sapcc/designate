@@ -1374,7 +1374,6 @@ class SQLAlchemyStorage(base.SQLAlchemy):
     # Pool methods
     def _find_pools(self, context, criterion, one=False, marker=None,
                     limit=None, sort_key=None, sort_dir=None):
-
         # Create a virtual column showing if the pool is shared or not.
         shared_case = case(
             (tables.shared_pools.c.target_domain_id.is_(None),
@@ -1388,53 +1387,15 @@ class SQLAlchemyStorage(base.SQLAlchemy):
                            criterion, one, marker, limit, sort_key,
                            sort_dir, query=query, include_shared=True)
 
-        # Load Relations
         def _load_relations(pool):
-            pool.attributes = self._find_pool_attributes(
-                context, {'pool_id': pool.id})
+            self._load_pool_relations(context, pool)
+            return pool
 
-            pool.ns_records = self._find_pool_ns_records(
-                context, {'pool_id': pool.id})
-
-            pool.nameservers = self._find_pool_nameservers(
-                context, {'pool_id': pool.id})
-
-            pool.targets = self._find_pool_targets(
-                context, {'pool_id': pool.id})
-
-            pool.also_notifies = self._find_pool_also_notifies(
-                context, {'pool_id': pool.id})
-
-            try:
-                catalog_zone = self.get_catalog_zone(context, pool)
-
-                try:
-                    tsigkey = self.find_tsigkey(
-                        context, criterion={'resource_id': catalog_zone.id})
-                except exceptions.TsigKeyNotFound:
-                    tsigkey = None
-
-                secret = tsigkey.secret if tsigkey is not None else None
-                algorithm = tsigkey.algorithm if tsigkey is not None else None
-
-                pool.catalog_zone = objects.PoolCatalogZone(
-                    catalog_zone_fqdn=catalog_zone.name,
-                    catalog_zone_refresh=catalog_zone.refresh,
-                    catalog_zone_tsig_key=secret,
-                    catalog_zone_tsig_algorithm=algorithm,
-                )
-            except exceptions.ZoneNotFound:
-                pool.catalog_zone = None
-
-            pool.obj_reset_changes(['attributes', 'ns_records', 'nameservers',
-                                    'targets', 'also_notifies', 'catalog_zone']
-                                   )
-
-        if one:
-            _load_relations(pools)
-        else:
+        if isinstance(pools, objects.PoolList):
             for pool in pools:
                 _load_relations(pool)
+        else:
+            _load_relations(pools)
 
         return pools
 
@@ -1445,16 +1406,10 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         :param context: RPC Context.
         :param pool: Pool object with the values to be created.
         """
-        if not context.is_admin:
-            if context.project_domain_id != pool.domain_id:
-                raise exceptions.Forbidden(
-                    "It's not allowed to create pools in other domain"
-                )
-
         pool = self._create(
             tables.pools, pool, exceptions.DuplicatePool,
             ['attributes', 'ns_records', 'nameservers', 'targets',
-             'also_notifies', 'catalog_zone'])
+             'also_notifies', 'catalog_zone', 'shared'])
 
         if pool.obj_attr_is_set('attributes'):
             for pool_attribute in pool.attributes:
@@ -1500,7 +1455,52 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         :param context: RPC Context.
         :param pool_id: The ID of the pool to get
         """
-        return self._find_pools(context, {'id': pool_id}, one=True)
+        pool = self._find(
+            context, tables.pools, objects.Pool,
+            objects.PoolList, exceptions.PoolNotFound,
+            {'id': pool_id}, one=True
+        )
+        pool.shared = self._is_pool_shared(pool_id)
+        self._load_pool_relations(context, pool)
+        return pool
+
+    def _load_pool_relations(self, context, pool):
+        """Load all relations for a pool object."""
+        pool.attributes = self._find_pool_attributes(
+            context, {'pool_id': pool.id})
+        pool.ns_records = self._find_pool_ns_records(
+            context, {'pool_id': pool.id})
+        pool.nameservers = self._find_pool_nameservers(
+            context, {'pool_id': pool.id})
+        pool.targets = self._find_pool_targets(
+            context, {'pool_id': pool.id})
+        pool.also_notifies = self._find_pool_also_notifies(
+            context, {'pool_id': pool.id})
+        try:
+            catalog_zone = self.get_catalog_zone(context, pool)
+            try:
+                tsigkey = self.find_tsigkey(
+                    context, criterion={'resource_id': catalog_zone.id})
+            except exceptions.TsigKeyNotFound:
+                tsigkey = None
+            secret = tsigkey.secret if tsigkey is not None else None
+            algorithm = tsigkey.algorithm if tsigkey is not None else None
+            pool.catalog_zone = objects.PoolCatalogZone(
+                catalog_zone_fqdn=catalog_zone.name,
+                catalog_zone_refresh=catalog_zone.refresh,
+                catalog_zone_tsig_key=secret,
+                catalog_zone_tsig_algorithm=algorithm,
+            )
+        except (exceptions.ZoneNotFound, exceptions.Forbidden):
+            pool.catalog_zone = None
+        pool.obj_reset_changes()
+
+    def _is_pool_shared(self, pool_id):
+        query = select(literal_column('true')).where(
+            tables.shared_pools.c.pool_id == pool_id
+        ).limit(1)
+        with sql.get_read_session() as session:
+            return session.scalar(query) is not None
 
     def find_pools(self, context, criterion=None, marker=None,
                    limit=None, sort_key=None, sort_dir=None):
@@ -1539,7 +1539,8 @@ class SQLAlchemyStorage(base.SQLAlchemy):
         pool = self._update(context, tables.pools, pool,
                             exceptions.DuplicatePool, exceptions.PoolNotFound,
                             ['attributes', 'ns_records', 'nameservers',
-                             'targets', 'also_notifies', 'catalog_zone'])
+                             'targets', 'also_notifies', 'catalog_zone',
+                             'shared'])
 
         for attribute_name in ('attributes', 'ns_records', 'nameservers',
                                'targets', 'also_notifies'):
@@ -2731,7 +2732,7 @@ class SQLAlchemyStorage(base.SQLAlchemy):
 
     def _find_pool_share(self, context, pool):
         criterion = {
-            "target_domain_id": context.domain_id,
+            "target_domain_id": context.project_domain_id,
             "pool_id": pool.id
         }
 

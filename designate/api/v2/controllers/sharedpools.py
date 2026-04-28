@@ -92,10 +92,10 @@ class SharedPoolsController(rest.RestController):
         response.status_int = 201
 
         LOG.info(
-            "Shared pool %(shared_pool)s"
-            " and target domain id %(target_domain_id)",
-            {'shared_pool': pool_share,
-             'target_domain_id': target_domain_id}
+            "Shared pool %(shared_pool)s and"
+            " target domain id %(target_domain_id)s",
+            {'shared_pool': pool_share.id,
+             'target_domain_id': pool_share.target_domain_id}
         )
 
         return DesignateAdapter.render(

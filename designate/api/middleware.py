@@ -154,7 +154,6 @@ class KeystoneContextMiddleware(ContextMiddleware):
 
         roles = headers.get('X-Roles').split(',')
         system_scope = headers.get('Openstack-System-Scope')
-
         try:
             self.make_context(
                 request,
@@ -163,7 +162,10 @@ class KeystoneContextMiddleware(ContextMiddleware):
                 project_id=tenant_id,
                 roles=roles,
                 service_catalog=catalog,
-                system_scope=system_scope
+                system_scope=system_scope,
+                project_domain_id=headers.get('X-Project-Domain-Id'),
+                user_domain_id=headers.get('X-User-Domain-Id'),
+                project_domain_name=headers.get('X-Project-Domain-Name'),
             )
         except exceptions.Forbidden:
             return flask.Response(status=403)
@@ -222,7 +224,9 @@ class TestContextMiddleware(ContextMiddleware):
             user_id=headers.get('X-Test-User-ID', self.default_user_id),
             project_id=headers.get('X-Test-Tenant-ID',
                                    self.default_tenant_id),
-            domain_id=self.default_domain_id, all_tenants=all_tenants,
+            project_domain_id=headers.get(
+                'X-Test-Domain-ID', self.default_domain_id),
+            all_tenants=all_tenants,
             roles=roles
         )
 

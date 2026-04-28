@@ -110,6 +110,7 @@ class DesignateContext(context.RequestContext):
             'delete_shares': self.delete_shares,
             'project_domain_name': self.project_domain_name,
             'domain_id': self.domain_id,
+            'project_id': self.project_id,
         })
 
         return copy.deepcopy(d)
@@ -162,7 +163,9 @@ class DesignateContext(context.RequestContext):
 
     @all_tenants.setter
     def all_tenants(self, value):
-        if value:
+        # Policy all_tenants already applied when context is_admin=True with
+        # elevated().
+        if value and not self.is_admin:
             policy.check('all_tenants', self)
         self._all_tenants = value
 
@@ -232,15 +235,6 @@ class DesignateContext(context.RequestContext):
         if self.user_auth_plugin:
             return self.user_auth_plugin
         return _ContextAuthPlugin(self.auth_token, self.service_catalog)
-
-    @classmethod
-    def from_environ(cls, environ):
-        ctxt = super(DesignateContext, cls).from_environ(environ)
-        ctxt.domain_id = (
-                environ.get("HTTP_X_DOMAIN_ID") or
-                environ.get("HTTP_X_PROJECT_DOMAIN_ID")
-        )
-        return ctxt
 
 
 class _ContextAuthPlugin(plugin.BaseAuthPlugin):

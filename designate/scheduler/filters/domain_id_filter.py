@@ -1,4 +1,4 @@
-# Copyright 2025 Cloudification GmbH. All rights reserved.
+# Copyright 2026 Cloudification GmbH. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may
 # not use this file except in compliance with the License. You may obtain
@@ -20,12 +20,15 @@ LOG = logging.getLogger(__name__)
 
 
 class DomainIDFilter(base.Filter):
-    """
+    """Filter pools by the Keystone domain of the user's project.
+
+    Selects pools whose domain_id matches context.project_domain_id,
+    plus any pools explicitly shared with that domain.
 
     .. warning::
 
-        This should only be enabled if required, as it will raise a
-        403 Forbidden if a user without the correct role uses it.
+        This should only be enabled if required, as it will restrict
+        pool selection to domain-specific pools only.
     """
 
     name = 'domain_id'
@@ -34,38 +37,46 @@ class DomainIDFilter(base.Filter):
     """
 
     def filter(self, context, pools, zone):
-        """Attempt to load and set the pool by domain_id  from context.
+        """Filter pools by project_domain_id from context.
 
-        :param context: :class:`designate.context.DesignateContext` - Context
-            Object from request
-        :param pools: :class:`designate.objects.pool.PoolList` - List of pools
-            to choose from
-        :param zone: :class:`designate.objects.zone.Zone` - Zone to be created
-        :return: :class:`designate.objects.pool.PoolList` -- A PoolList
-            containing a single pool.
-        :raises: Forbidden, PoolNotFound
+        :param context: :class:`designate.context.DesignateContext`
+        :param pools: :class:`designate.objects.pool.PoolList`
+        :param zone: :class:`designate.objects.zone.Zone`
+        :return: :class:`designate.objects.pool.PoolList`
         """
-        pools_list = objects.PoolList()
-        if not context.domain_id:
+        # If the context has no project_domain_id (e.g. system-scoped token),
+        # return all pools unchanged — no domain-based filtering applies.
+        if not context.project_domain_id:
             return pools
-        LOG.debug(f"Filtering pools for domain_id={context.domain_id}")
-        for pool in pools:
-            if context.domain_id == pool.domain_id:
-                pools_list.append(pool)
-        shared_pool_list = self.storage.find_shared_pools(context)
-        if shared_pool_list:
-            for shared_pool in shared_pool_list:
-                if shared_pool.target_domain_id == context.domain_id:
-                    pool = self.storage.get_pool(
-                        context,
-                        shared_pool.pool_id
-                    )
-                    pools_list.append(pool)
+
         LOG.debug(
-            f"Matched {len(pools_list)} pools for domain {context.domain_id}"
+            'Filtering pools for project_domain_id=%s',
+            context.project_domain_id
+        )
+
+        seen_pool_ids = set()
+        pools_list = objects.PoolList()
+
+        for pool in pools:
+            if context.project_domain_id == pool.domain_id:
+                pools_list.append(pool)
+                seen_pool_ids.add(pool.id)
+
+        shared_pool_list = self.storage.find_shared_pools(context)
+        for shared_pool in shared_pool_list:
+            if shared_pool.target_domain_id == context.project_domain_id:
+                if shared_pool.pool_id not in seen_pool_ids:
+                    pool = self.storage.get_pool(context, shared_pool.pool_id)
+                    pools_list.append(pool)
+                    seen_pool_ids.add(shared_pool.pool_id)
+
+        LOG.debug(
+            'Matched %d pools for project_domain_id=%s',
+            len(pools_list), context.project_domain_id
         )
         if not pools_list:
             LOG.warning(
-                f"No matching pools for domain_id={context.domain_id}"
+                'No matching pools for project_domain_id=%s',
+                context.project_domain_id
             )
         return pools_list

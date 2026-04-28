@@ -2556,16 +2556,17 @@ class Service(service.RPCService):
         if pool.tenant_id is None:
             pool.tenant_id = context.project_id
         if not pool.domain_id:
-            if context.domain_id:
-                pool.domain_id = context.domain_id
-            if context.domain_name:
-                if context.domain_name.lower() == "default":
-                    pool.domain_id = context.domain_name
+            pool.domain_id = context.project_domain_id
+
+        if (not context.is_admin and
+                pool.domain_id is not None and
+                context.project_domain_id != pool.domain_id):
+            raise exceptions.Forbidden(
+                "It's not allowed to create pools in other domain"
+            )
 
         policy.check('create_pool', context)
-
         created_pool = self.storage.create_pool(context, pool)
-
         return created_pool
 
     @rpc.expected_exceptions()
@@ -2588,16 +2589,16 @@ class Service(service.RPCService):
     def get_pool(self, context, pool_id):
         pool = self.storage.get_pool(context, pool_id)
         pool_shared = False
-        if not context.is_admin and context.domain_id and (
-                context.domain_id != pool.domain_id
-        ):
+        if (not context.is_admin and
+                context.project_domain_id and
+                pool.domain_id is not None and
+                context.project_domain_id != pool.domain_id):
             pool_shared = self.storage.is_pool_shared_with_domain(
-                pool_id, context.domain_id)
-
+                pool_id, context.project_domain_id)
             if not pool_shared:
                 raise exceptions.SharedPoolNotFound(
                     "Pool isn't allowed for domain %r: %r" %
-                    (context.domain_id, pool))
+                    (context.project_domain_id, pool))
         target = {
             'pool_id': pool_id,
             'pool_name': pool.name,
@@ -3581,21 +3582,15 @@ class Service(service.RPCService):
     @rpc.expected_exceptions()
     def find_shared_pools(self, context, criterion=None, marker=None,
                           limit=None, sort_key=None, sort_dir=None):
-
         # By default we will let any valid token through as the filter
         # criteria below will limit the scope of the results.
         policy.check('find_pool_shares', context)
 
-        if not context.all_tenants and criterion:
-            # Check that they are asking for another domain shares
-            if policy.enforce_new_defaults():
-                target = {constants.RBAC_DOMAIN_ID: criterion.get(
-                    'target_domain_id', context.domain_id)}
-            else:
-                target = {'domain_id': criterion.get('target_domain_id',
-                                                     context.domain_id)}
-
-            policy.check('find_domain_pool_share', context, target)
+        if not context.all_tenants:
+            target_domain = (criterion or {}).get('target_domain_id')
+            if target_domain and target_domain != context.project_domain_id:
+                policy.check('find_domain_pool_share', context,
+                             {constants.RBAC_DOMAIN_ID: target_domain})
 
         shared_pools = self.storage.find_shared_pools(
             context, criterion, marker, limit, sort_key, sort_dir
