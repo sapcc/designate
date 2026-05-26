@@ -3589,8 +3589,11 @@ class Service(service.RPCService):
         if not context.all_tenants:
             target_domain = (criterion or {}).get('target_domain_id')
             if target_domain and target_domain != context.project_domain_id:
-                policy.check('find_domain_pool_share', context,
-                             {constants.RBAC_DOMAIN_ID: target_domain})
+                if policy.enforce_new_defaults():
+                    target = {constants.RBAC_DOMAIN_ID: target_domain}
+                else:
+                    target = {'domain_id': target_domain}
+                policy.check('find_domain_pool_share', context, target)
 
         shared_pools = self.storage.find_shared_pools(
             context, criterion, marker, limit, sort_key, sort_dir
