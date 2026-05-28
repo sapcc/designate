@@ -17,8 +17,6 @@ import copy
 
 from keystoneauth1.access import service_catalog as ksa_service_catalog
 from keystoneauth1 import plugin
-from keystoneauth1 import session
-from keystoneclient.v3 import client as ks_client
 from oslo_config import cfg
 from oslo_context import context
 from oslo_log import log as logging
@@ -30,7 +28,6 @@ LOG = logging.getLogger(__name__)
 
 
 class DesignateContext(context.RequestContext):
-    _cache_region = None
 
     _all_tenants = False
     _hide_counts = False
@@ -41,11 +38,10 @@ class DesignateContext(context.RequestContext):
     _client_addr = None
     _delete_shares = False
     _project_domain_name = None
-    _domain_id = None
     FROM_DICT_EXTRA_KEYS = [
         'original_project_id', 'service_catalog', 'all_tenants', 'abandon',
         'edit_managed_records', 'tsigkey_id', 'hide_counts', 'client_addr',
-        'hard_delete', 'delete_shares', 'project_domain_name', 'domain_id',
+        'hard_delete', 'delete_shares', 'project_domain_name'
     ]
 
     def __init__(self, service_catalog=None, all_tenants=False, abandon=None,
@@ -53,8 +49,7 @@ class DesignateContext(context.RequestContext):
                  edit_managed_records=False, hide_counts=False,
                  client_addr=None, user_auth_plugin=None,
                  hard_delete=False, delete_shares=False,
-                 project_domain_name=None, domain_id=None,
-                 **kwargs):
+                 project_domain_name=None, **kwargs):
         super().__init__(**kwargs)
 
         self.user_auth_plugin = user_auth_plugin
@@ -71,7 +66,11 @@ class DesignateContext(context.RequestContext):
         self.client_addr = client_addr
         self.delete_shares = delete_shares
         self.project_domain_name = project_domain_name
-        self.domain_id = domain_id
+
+    @classmethod
+    def from_dict(cls, values, **kwargs):
+        kwargs.setdefault('domain_id', values.get('domain_id'))
+        return super().from_dict(values, **kwargs)
 
     def deepcopy(self):
         return self.from_dict(self.to_dict())
@@ -111,6 +110,7 @@ class DesignateContext(context.RequestContext):
             'delete_shares': self.delete_shares,
             'project_domain_name': self.project_domain_name,
             'domain_id': self.domain_id,
+            'project_id': self.project_id,
         })
 
         return copy.deepcopy(d)
@@ -163,7 +163,9 @@ class DesignateContext(context.RequestContext):
 
     @all_tenants.setter
     def all_tenants(self, value):
-        if value:
+        # Policy all_tenants already applied when context is_admin=True with
+        # elevated().
+        if value and not self.is_admin:
             policy.check('all_tenants', self)
         self._all_tenants = value
 
@@ -233,77 +235,6 @@ class DesignateContext(context.RequestContext):
         if self.user_auth_plugin:
             return self.user_auth_plugin
         return _ContextAuthPlugin(self.auth_token, self.service_catalog)
-
-    @classmethod
-    def from_environ(cls, environ):
-        ctxt = super(DesignateContext, cls).from_environ(environ)
-        # Pick up domain_id injected by DomainResolverFromTokenMiddleware
-        ctxt.domain_id = environ.get("HTTP_X_DOMAIN_ID")
-        return ctxt
-
-    def resolve_domain_id(self, domain_name):
-        if not domain_name:
-            return None
-
-        if "keystone_authtoken" not in CONF.list_all_sections():
-            LOG.warning(
-                "[resolve_domain_id] Skipping Keystone lookup: "
-                "no [keystone_authtoken] group in config (likely in tests)"
-            )
-            return None
-
-        auth_group = getattr(CONF, "keystone_authtoken", None)
-        auth_url = getattr(auth_group, "auth_url", None)
-        if not auth_url:
-            LOG.warning(
-                "[resolve_domain_id] Missing auth_url in [keystone_authtoken]"
-            )
-            return None
-        try:
-            sess = session.Session()
-            ks = ks_client.Client(session=sess, endpoint=auth_url)
-            domains = ks.domains.list(name=domain_name)
-            if not domains:
-                LOG.warning(f"Domain '{domain_name}' not found in Keystone")
-                return None
-            if len(domains) != 1:
-                LOG.warning(
-                    "Not able determine domain id by name or "
-                    f"multiple domains found with name {domain_name}"
-                )
-                return None
-            resolved_id = domains[0].id
-            LOG.debug(
-                f"Resolved domain_name={domain_name} domain_id={resolved_id}"
-            )
-            return resolved_id
-        except Exception as e:
-            LOG.error(
-                f"Keystone lookup failed for domain {domain_name}: {e}")
-            return None
-
-    def ensure_domain_id(self):
-        """
-        Fallback method in case when domain_id from RequestContext come
-         as None and keystonemiddleware not used.
-        It's needed in case of shared pools because to create zone
-        need to use project scope token where is domain_id field is
-        not filled and it helps to fill domain_id.
-        """
-        if not self.domain_id:
-            LOG.warning(
-                "Domain ID missing in context. Resolving default domain."
-            )
-
-            default_domain = getattr(CONF, "default_domain_name", "Default")
-            self.domain_id = self.resolve_domain_id(default_domain)
-
-            LOG.info(
-                "Resolved default domain '%s' into %s",
-                default_domain,
-                self.domain_id
-            )
-        return self.domain_id
 
 
 class _ContextAuthPlugin(plugin.BaseAuthPlugin):
