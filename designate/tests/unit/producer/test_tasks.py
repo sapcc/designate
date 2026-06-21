@@ -22,6 +22,7 @@ import fixtures
 from oslo_config import cfg
 from oslo_config import fixture as cfg_fixture
 from oslo_log import log as logging
+import oslo_messaging
 from oslo_utils import timeutils
 from oslo_utils import uuidutils
 import oslotest.base
@@ -342,6 +343,22 @@ class PeriodicIncrementSerialTest(oslotest.base.BaseTestCase):
 
         self.central_api.increment_zone_serial.assert_not_called()
         self.worker_api.update_zone.assert_not_called()
+
+    def test_increment_batch_survives_failing_zone(self):
+        bad = RoObject(id=uuidutils.generate_uuid(), action='UPDATE',
+                       increment_serial=True, delayed_notify=False)
+        good = RoObject(id=uuidutils.generate_uuid(), action='UPDATE',
+                        increment_serial=True, delayed_notify=False)
+        self.central_api.find_zones.side_effect = [[bad, good], []]
+        self.central_api.increment_zone_serial.side_effect = [
+            oslo_messaging.RemoteError(exc_type='DBDataError', value='...'),
+            123,
+        ]
+
+        self.task()
+
+        self.assertEqual(2, self.central_api.increment_zone_serial.call_count)
+        self.worker_api.update_zone.assert_called_once()
 
 
 class PeriodicGenerateDelayedNotifyTaskTest(oslotest.base.BaseTestCase):
