@@ -1119,7 +1119,8 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # Reset the mock to avoid the calls from the create_zone() call
         mock_notifier.reset_mock()
         # Perform the update
-        self.central_service.update_zone(self.admin_context, zone)
+        self.central_service.update_zone(
+            self.admin_context, zone, increment_serial=False)
         self.assertEqual(serial, self.central_service.get_zone(
             self.admin_context, zone['id']).serial)
 
@@ -1133,7 +1134,8 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # Reset the mock to avoid the calls from the create_zone() call
         mock_notifier.reset_mock()
         # Perform the update
-        self.central_service.update_zone(self.admin_context, zone)
+        self.central_service.update_zone(
+            self.admin_context, zone, increment_serial=False)
         self.assertEqual(serial, self.central_service.get_zone(
             self.admin_context, zone['id']).serial)
 
@@ -1147,8 +1149,18 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # Reset the mock to avoid the calls from the create_zone() call
         mock_notifier.reset_mock()
         # Perform the update
-        self.central_service.update_zone(self.admin_context, zone)
+        self.central_service.update_zone(
+            self.admin_context, zone, increment_serial=False)
         self.assertEqual(serial, self.central_service.get_zone(
+            self.admin_context, zone['id']).serial)
+
+    @mock.patch.object(notifier.Notifier, "info")
+    def test_increment_zone_serial_caps_at_signed_int_max(self, mock_notifier):
+        zone = self.create_zone(email='info@example.org', serial=2147483647)
+        new_serial = self.central_service.increment_zone_serial(
+            self.admin_context, zone)
+        self.assertLessEqual(new_serial, 2147483647)
+        self.assertEqual(2147483647, self.central_service.get_zone(
             self.admin_context, zone['id']).serial)
 
     def test_update_zone_name_fail(self):
@@ -2684,8 +2696,10 @@ class CentralServiceTest(designate.tests.functional.TestCase):
             elevated_a, criterion)[0].zone_id
 
         # Simulate the update on the backend
+        zone_serial = self.central_service.get_zone(
+            elevated_a, zone_id).serial
         self.central_service.update_status(
-            elevated_a, zone_id, 'SUCCESS', timeutils.utcnow_ts(), 'UPDATE')
+            elevated_a, zone_id, 'SUCCESS', zone_serial, 'UPDATE')
 
         self.network_api.fake.deallocate_floatingip(fip['id'])
 
@@ -2705,8 +2719,12 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         self.assertIsNone(fips[0]['ptrdname'])
 
         # Simulate the invalidation on the backend
+        zone = self.central_service.get_zone(
+            elevated_a, zone_id)
+        zone_serial = self.central_service.increment_zone_serial(
+            elevated_a, zone)
         self.central_service.update_status(
-            elevated_a, zone_id, 'SUCCESS', timeutils.utcnow_ts(), 'UPDATE')
+            elevated_a, zone_id, 'SUCCESS', zone_serial, 'UPDATE')
 
         record = self.central_service.find_records(elevated_a, criterion)[0]
         self.assertEqual('NONE', record.action)
@@ -3482,11 +3500,12 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         self.assertEqual('c326f735-eecc-4968-969f-355a43c4ae27',
                          service_status.id)
 
-        exc = self.assertRaises(rpc_dispatcher.ExpectedException,
-                                self.central_service.find_service_status,
-                                admin_context,
-                                objects.ServiceStatus.from_dict(values)
-                                )
+        _ = self.assertRaises(
+            rpc_dispatcher.ExpectedException,
+            self.central_service.find_service_status,
+            admin_context,
+            objects.ServiceStatus.from_dict(values)
+        )
 
     def test_create_zone_transfer_request(self):
         zone = self.create_zone()
@@ -4693,21 +4712,21 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
         # Increment serial (Producer -> Central) for zone.
         with mock.patch.object(timeutils, 'utcnow_ts',
-                               return_value=zone_serial + 1):
+                               return_value=zone_serial + 5):
             self.central_service.increment_zone_serial(
                 self.admin_context, zone
             )
 
         updated_zone = self.central_service.get_zone(
-            self.admin_context, zone.id
-        )
+            self.admin_context, zone.id)
+
         recordsets = self.central_service.find_recordsets(
             self.admin_context,
             criterion={'zone_id': zone.id, 'type': 'A'}
         )
 
         # Ensure that serial is now correct.
-        self.assertEqual(zone_serial + 1, updated_zone.serial)
+        self.assertEqual(zone_serial + 5, updated_zone.serial)
         self.assertFalse(updated_zone.increment_serial)
 
         # But the zone is still in pending status as we haven't notified
@@ -4735,7 +4754,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
         # Validate that the status is now ACTIVE.
         self.assertEqual('ACTIVE', updated_zone.status)
-        self.assertEqual(zone_serial + 1, updated_zone.serial)
+        self.assertEqual(zone_serial + 5, updated_zone.serial)
         for recordset in recordsets:
             self.assertEqual('ACTIVE', recordset.status)
             for record in recordset.records:

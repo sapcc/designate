@@ -16,6 +16,7 @@
 import datetime
 
 from oslo_log import log as logging
+import oslo_messaging
 from oslo_utils import timeutils
 
 from designate.central import rpcapi
@@ -290,21 +291,27 @@ class PeriodicIncrementSerialTask(PeriodicTask):
                 )
                 continue
 
-            serial = self.central_api.increment_zone_serial(ctxt, zone)
-            LOG.debug(
-                'Incremented serial for %(id)s to %(serial)d',
-                {
-                    'id': zone.id,
-                    'serial': serial,
-                }
-            )
+            try:
+                serial = self.central_api.increment_zone_serial(ctxt, zone)
+                LOG.debug(
+                    'Incremented serial for %(id)s to %(serial)d',
+                    {
+                        'id': zone.id,
+                        'serial': serial,
+                    }
+                )
+            except oslo_messaging.RemoteError as e:
+                LOG.error(
+                    'increment_zone_serial failed for zone %s (%s); '
+                    'skipping to keep the batch moving', zone.id, e.exc_type
+                )
+                continue
             if not zone.delayed_notify:
                 # Notify the backend.
                 if zone.action == 'NONE':
                     zone.action = 'UPDATE'
                     zone.status = 'PENDING'
                 self.worker_api.update_zone(ctxt, zone)
-
 
     def __call__(self):
         ctxt = context.DesignateContext.get_admin_context()

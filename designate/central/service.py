@@ -53,6 +53,7 @@ from designate.worker import rpcapi as worker_rpcapi
 
 CONF = designate.conf.CONF
 LOG = logging.getLogger(__name__)
+SERIAL_MAX = 2 ** 31 - 1
 
 
 class Service(service.RPCService):
@@ -748,15 +749,14 @@ class Service(service.RPCService):
     @transaction
     @lock.synchronized_zone()
     def increment_zone_serial(self, context, zone):
-        created_ts = zone.created_at.timestamp()
-        now_ts = zone.created_at.now().timestamp()
-        if created_ts < zone.serial < now_ts:
-            zone.serial = self.storage.increment_serial(
-                context, zone.id, int(now_ts))
-        else:
-            zone.serial = self.storage.increment_serial(
-                context, zone.id, zone.serial + 1
-            )
+        new_serial = min(max(zone.serial + 1, timeutils.utcnow_ts()),
+                         SERIAL_MAX)
+        if new_serial > SERIAL_MAX:
+            LOG.error("Zone %s serial %d exceeds signed max %d; "
+                      "needs manual reset/recreate",
+                      zone.id, new_serial, SERIAL_MAX)
+            new_serial = SERIAL_MAX
+        zone.serial = self.storage.increment_serial(context, zone.id, new_serial)
         self._update_soa(context, zone)
         return zone.serial
 
@@ -1903,10 +1903,9 @@ class Service(service.RPCService):
             for record in recordset.records:
                 record.action = 'DELETE'
                 record.status = 'PENDING'
-                if not increment_serial:
-                    record.serial = zone.serial
-                else:
-                    record.serial = timeutils.utcnow_ts()
+                record.serial = self._generate_record_serial(
+                    zone, increment_serial
+                )
 
         # Update the recordset's action/status and then delete it
         self.storage.update_recordset(context, recordset)
