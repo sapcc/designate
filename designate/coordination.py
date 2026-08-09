@@ -170,6 +170,8 @@ class Partitioner:
 
     def _partition(self, members, me, partitions):
         member_count = len(members)
+        if not member_count:
+            member_count = 1
         partition_count = len(partitions)
         partition_size = int(
             math.ceil(float(partition_count) / float(member_count)))
