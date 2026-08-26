@@ -811,7 +811,7 @@ class Service(service.RPCService):
     @lock.synchronized_zone()
     def increment_zone_serial(self, context, zone):
         created_ts = zone.created_at.timestamp()
-        now_ts = zone.created_at.now().timestamp()
+        now_ts = timeutils.utcnow_ts()
         if created_ts < zone.serial < now_ts:
             zone.serial = self.storage.increment_serial(
                 context, zone.id, int(now_ts))
