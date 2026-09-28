@@ -1,0 +1,420 @@
+# patches.yaml — Downstream patch inventory for the SAP Designate fork
+#
+# This file is the authoritative registry of all downstream patches across releases.
+# It answers questions that Git alone cannot reliably answer:
+#   - Which commits belong to the same logical change?
+#   - What dependencies exist between patches?
+#   - What must be ported to the next release?
+#   - What has been dropped or taken upstream?
+#   - Which Alembic revisions belong to a patch?
+#
+# Update this file in the same PR whenever a patch is created, ported, or dropped.
+# Status changes are always a side effect of a real PR, never a PR of their own:
+# a patch flips from "pending" to "integrated" inside the porting PR itself.
+# Every downstream code PR must reference a known patch ID.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# TOP-LEVEL FIELDS
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   schema_version  integer   Version of this file's schema. Currently 1.
+#   patches         list      Ordered list of patch entries (see below).
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# PATCH ENTRY FIELDS
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   id          string    Stable identifier, e.g. PATCH-023 or PATCH-001-F01.
+#                         Stays constant across releases even if commits change.
+#                         Fix patches use the suffix -F01, -F02, … and their
+#                         dependency on the patched entry is listed in depends_on.
+#
+#   title       string    Short human-readable description of the patch.
+#
+#   depends_on  list      Patch IDs that must be integrated before this one.
+#                         Covers both technical and fix relationships.
+#                         [] means the patch is independent.
+#                         A patch whose dependencies are not yet integrated in a
+#                         release is implicitly blocked — no separate status needed.
+#
+#   upstream    object    Relationship to the upstream project.
+#     .status   string    See UPSTREAM STATUS below.
+#     .note     string    (optional) Free-text explanation, links, caveats.
+#                         Document known overlap or discrepancies found during the
+#                         last migration investigation so the next cycle has context.
+#
+#   releases    object    Per-release integration state.
+#                         Keys are upstream version strings, e.g. "2024.2", "2026.2".
+#     .<ver>.status       string    See RELEASE STATUS below.
+#     .<ver>.commits      list      (optional) Commit SHAs on the integration branch.
+#                                   Recorded for historical releases where squash-merge
+#                                   SHAs were known at write time. For new releases,
+#                                   commits are omitted — use
+#                                   git log --oneline --grep="\[PATCH-NNN\]" instead.
+#     .<ver>.migrations   list      (optional) Alembic revision IDs introduced by this
+#                                   patch. Required when the patch adds a DB migration;
+#                                   omit the field entirely when there is none.
+#     .<ver>.pr           integer   (optional) Pull request number.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# UPSTREAM STATUS
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   downstream-only   No equivalent exists upstream; patch must always be ported.
+#                     Use .note to document known overlap or caveats discovered
+#                     during the last investigation.
+#   upstreamed        Upstream contains an equivalent or identical change;
+#                     patch can be dropped in the next migration cycle.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# RELEASE STATUS
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#   pending      Patch has not yet been ported to this release (default).
+#   integrated   Patch has been merged into the integration branch for this release.
+#   dropped      Patch was intentionally not ported to this release.
+#                If upstream.status is "upstreamed", no new release block is added
+#                in future cycles — the patch is permanently closed.
+#                If upstream.status is "downstream-only", re-evaluate next cycle.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+
+schema_version: 1
+
+patches:
+  - id: PATCH-001
+    title: CI / Concourse Setup
+    depends_on: []
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [72b232ee, 09dc37fe, e47223f2]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-002
+    title: Custom Requirements & Proprietary Forks
+    depends_on: []
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [bb69d191, d28aa0f4, 4b3283db, beb7ad71, 56952234, a858f98a, b23425dd, 5ef18dc7]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-003
+    title: Zone Import into Non-Default Pool
+    depends_on: []
+    upstream:
+      status: downstream-only
+      note: >
+        Upstream 2026.2 achieves the same goal via JSON body with the attributes field.
+        Only apply if the X-Designate-Pool-ID header is still actively used.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [25d2da84]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-004
+    title: SOA Fields Editable via API (refresh/retry/expire/minimum/ttl)
+    depends_on: []
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [dae6ca3d]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-005
+    title: Zone Serial Settable via API
+    depends_on: [PATCH-004]
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [e13b4c3c]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-006
+    title: Sub-/Super-Zone Policy Checks
+    depends_on: []
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [6818c5c5, 9fb7e380, 06648d66, cc6309b0, 082c7a66]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-007
+    title: Attribute Filter Considers pool_id
+    depends_on: []
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [e8ba3450]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-008
+    title: F5 Express DNS Backend Driver
+    depends_on: []
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [9ee1b0bf]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-009
+    title: Elevated Context on Zone Update
+    depends_on: []
+    upstream:
+      status: downstream-only
+      note: worker/tasks/zone.py possibly changed by Eventlet removal (2026.1).
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [023cd47f]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-010
+    title: TXT Record Handling (Revert Split, 65k Limit, Quote Validation)
+    depends_on: []
+    upstream:
+      status: downstream-only
+      note: >
+        fb59c48c reverts an upstream feature; eae63440 overlaps with upstream newline
+        fix in rrdata_txt.py. Cross-check before re-applying.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [fb59c48c, 731533bd, eae63440]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-011
+    title: Stop Service Status & Cleanup
+    depends_on: []
+    upstream:
+      status: upstreamed
+      note: >
+        Upstream 2026.2 commit 081661f4 (identical Change-Id).
+        Note config rename: service_time_threshold → time_threshold.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [db5b62f1, df733dbe, dd3875b9]
+      "2026.2":
+        status: dropped
+
+  - id: PATCH-012
+    title: WSGI Loads secrets.conf
+    depends_on: []
+    upstream:
+      status: downstream-only
+      note: >
+        WSGI infrastructure changed completely in 2026.1 (Eventlet removal,
+        designate-api deprecated). Port SAP-specific changes to the new structure.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [ee49875d]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-013
+    title: Non-Unix Serial Formats (RFC1982)
+    depends_on: [PATCH-005]
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [ffd279ec, 89eb55c1]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-014
+    title: Validate API Filter as str
+    depends_on: []
+    upstream:
+      status: upstreamed
+      note: >
+        Upstream 2026.2 solves this more thoroughly via isinstance(params[k], list)
+        raising BadRequest instead of silently ignoring invalid values.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [26bd9b8d]
+      "2026.2":
+        status: dropped
+
+  - id: PATCH-015
+    title: Better Stale Zone Detection (updated_at, max_prop_time)
+    depends_on: [PATCH-013]
+    upstream:
+      status: downstream-only
+      note: worker/tasks/ possibly heavily changed by Eventlet removal (2026.1).
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [7b0d7706]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-016
+    title: Force Option for Zone Import
+    depends_on: [PATCH-003]
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [912fa85b, 7ce9eb5c]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-017
+    title: Granular Recordset Policies (create/update/delete)
+    depends_on: []
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [21059f91]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-018
+    title: Zone Sharing (Dalmatian Merge)
+    depends_on: []
+    upstream:
+      status: downstream-only
+      note: >
+        Zone sharing feature itself present in upstream 2026.2. SAP-specific parts:
+        9 lines in central/service.py + optional sharedzones.py.
+        d6653fad cannot be cherry-picked directly due to Alembic conflict.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [d6653fad, 3bcbe4ba, 5841efd9]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-019
+    title: Remove RE_FIP Backslash (raw string)
+    depends_on: []
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [9e7c8738]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-020
+    title: Zone Creation in Foreign Tenants via Policy
+    depends_on: [PATCH-006]
+    upstream:
+      status: downstream-only
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [3a9b03d6]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-021
+    title: Catalog Zones for ccloud
+    depends_on: []
+    upstream:
+      status: downstream-only
+      note: >
+        Cross-check 9727ef32 against the 2026.2 fix for Catalog Zone Serial Bump —
+        possibly the same bug, in which case skip.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [9727ef32, ccd0d95c, 0978c422]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-022
+    title: HTTPS & SVCB Record Types (RFC9460)
+    depends_on: []
+    upstream:
+      status: upstreamed
+      note: >
+        Included in upstream 2025.2. BIND constraint: 9.20.26 does not fully support
+        SVCB/HTTPS; requires 9.21.8+.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [23765b04]
+      "2026.2":
+        status: dropped
+
+  - id: PATCH-023
+    title: Pools RBAC (SOV/IAAS)
+    depends_on: [PATCH-006, PATCH-007]
+    upstream:
+      status: downstream-only
+      note: >
+        Most complex patch. context.py and storage/sqlalchemy/ possibly heavily
+        changed by threading migration (2026.1).
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [bde3de17, ae94582c, a27b0dde, 2123ecc4]
+        migrations: [591b07cc1eab]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-024
+    title: Zone Move Between Pools
+    depends_on: [PATCH-023]
+    upstream:
+      status: downstream-only
+      note: >
+        610a1f8c marked as backport. Compare against current 2026.2 fix —
+        possibly the same fix.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [610a1f8c]
+      "2026.2":
+        status: pending
+
+  - id: PATCH-025
+    title: CVE-2026-71193/71194 (cross-tenant/-pool ownership bypass)
+    depends_on: [PATCH-023]
+    upstream:
+      status: downstream-only
+      note: >
+        CVE date 2026-08. Before re-applying, check whether upstream has released
+        an official fix by now.
+    releases:
+      "2024.2":
+        status: integrated
+        commits: [fa08e037, 3b746107]
+      "2026.2":
+        status: pending

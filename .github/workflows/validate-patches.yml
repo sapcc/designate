@@ -1,0 +1,21 @@
+name: Validate patches.yaml
+
+on:
+  pull_request:
+
+  push:
+    branches:
+      - "stable/*-m3"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Validate patches.yaml
+        run: python3 patch-engineering/scripts/validate_patches.py patch-engineering/patches.yaml
