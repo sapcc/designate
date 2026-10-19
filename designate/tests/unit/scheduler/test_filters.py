@@ -513,29 +513,6 @@ class SchedulerInDoubtDefaultPoolFilterTest(SchedulerFilterTest):
 
         self.assertEqual(len(pools), 2)
 
-    def test_no_duplicate_when_pool_owned_and_shared(self):
-        pool_id = '6c346011-e581-429b-a7a2-6cdf0aba91c3'
-        current_pools = objects.PoolList.from_list([
-            {'id': pool_id, 'domain_id': 'test'},
-        ])
-        shared_pool_obj = objects.Pool.from_dict(
-            {'id': pool_id, 'domain_id': 'test'}
-        )
-        mock_storage = mock.Mock()
-        mock_storage.find_shared_pools.return_value = (
-            objects.SharedPoolList.from_list([{
-                'target_domain_id': 'test',
-                'pool_id': pool_id,
-                'domain_id': 'test',
-            }])
-        )
-        mock_storage.get_pool.return_value = shared_pool_obj
-        test_filter = self.FILTER(storage=mock_storage)
-        result = test_filter.filter(self.context, current_pools, self.zone)
-
-        self.assertEqual(1, len(result))
-        self.assertEqual(pool_id, result[0].id)
-
 
 class DomainIDFilterTest(SchedulerFilterTest):
     FILTER = domain_id_filter.DomainIDFilter
@@ -649,6 +626,183 @@ class DomainIDFilterTest(SchedulerFilterTest):
         self.assertEqual(1, len(pools))
         self.assertEqual(pools[0].id,
                          '5fabcd37-262c-4cf3-8625-7f419434b6df')
+
+    def test_no_duplicate_when_pool_owned_and_shared(self):
+        pool_id = '6c346011-e581-429b-a7a2-6cdf0aba91c3'
+        current_pools = objects.PoolList.from_list([
+            {'id': pool_id, 'domain_id': 'test'},
+        ])
+        mock_storage = mock.Mock()
+        mock_storage.find_shared_pools.return_value = (
+            objects.SharedPoolList.from_list([{
+                'target_domain_id': 'test',
+                'pool_id': pool_id,
+                'domain_id': 'test',
+            }])
+        )
+        test_filter = self.FILTER(storage=mock_storage)
+        result = test_filter.filter(self.context, current_pools, self.zone)
+
+        self.assertEqual(1, len(result))
+        self.assertEqual(pool_id, result[0].id)
+
+    def test_returns_all_pools_available_to_domain(self):
+        # First in the chain the filter gets every pool. It has to return
+        # all pools the domain may use, owned and shared, so that the
+        # attribute filters after it can choose among them.
+        own_id = '6c346011-e581-429b-a7a2-6cdf0aba91c3'
+        shared_ids = ['5fabcd37-262c-4cf3-8625-7f419434b6df',
+                      '24702e43-8a52-440f-ab74-19fc16048860']
+        foreign_id = '794ccc2c-d751-44fe-b57f-8894c9f5c842'
+        domainless_id = '67d71c2a-645c-4dde-a6b8-60a172c9ede8'
+        current_pools = objects.PoolList.from_list([
+            {'id': own_id, 'domain_id': 'test'},
+            {'id': shared_ids[0], 'domain_id': 'default'},
+            {'id': shared_ids[1], 'domain_id': 'iaas'},
+            {'id': foreign_id, 'domain_id': 'default'},
+            {'id': domainless_id},
+        ])
+        mock_storage = mock.Mock()
+        mock_storage.find_shared_pools.return_value = (
+            objects.SharedPoolList.from_list([
+                {'target_domain_id': 'test',
+                 'pool_id': shared_ids[0],
+                 'domain_id': 'default'},
+                {'target_domain_id': 'test',
+                 'pool_id': shared_ids[1],
+                 'domain_id': 'iaas'},
+                {'target_domain_id': 'other',
+                 'pool_id': foreign_id,
+                 'domain_id': 'default'},
+            ])
+        )
+        mock_storage.get_pool.side_effect = lambda context, pool_id: next(
+            pool for pool in current_pools if pool.id == pool_id
+        )
+        test_filter = self.FILTER(storage=mock_storage)
+
+        pools = test_filter.filter(self.context, current_pools, self.zone)
+
+        self.assertEqual([own_id] + shared_ids, [pool.id for pool in pools])
+
+    def test_does_not_add_pools_removed_by_previous_filters(self):
+        # The attribute filter already picked one of the two pools shared
+        # with the domain. Adding the other one back makes the scheduler
+        # fail with MultiplePoolsFound.
+        all_pools = objects.PoolList.from_list([
+            {'id': '24702e43-8a52-440f-ab74-19fc16048860',
+             'domain_id': 'default'},
+            {'id': '5fabcd37-262c-4cf3-8625-7f419434b6df',
+             'domain_id': 'default'},
+        ])
+        current_pools = objects.PoolList.from_list([
+            {'id': '24702e43-8a52-440f-ab74-19fc16048860',
+             'domain_id': 'default'},
+        ])
+        mock_storage = mock.Mock()
+        mock_storage.find_shared_pools.return_value = (
+            objects.SharedPoolList.from_list([
+                {'target_domain_id': 'test',
+                 'pool_id': pool.id,
+                 'domain_id': 'default'}
+                for pool in all_pools
+            ])
+        )
+        mock_storage.get_pool.side_effect = lambda context, pool_id: next(
+            pool for pool in all_pools if pool.id == pool_id
+        )
+        test_filter = self.FILTER(storage=mock_storage)
+
+        pools = test_filter.filter(self.context, current_pools, self.zone)
+
+        self.assertEqual(['24702e43-8a52-440f-ab74-19fc16048860'],
+                         [pool.id for pool in pools])
+
+    def test_does_not_add_shared_pool_to_empty_list(self):
+        # The previous filters found no pool for the request. The zone must
+        # not end up in the pool shared with the domain instead.
+        shared_pool = objects.Pool.from_dict(
+            {'id': '5fabcd37-262c-4cf3-8625-7f419434b6df',
+             'domain_id': 'default'}
+        )
+        mock_storage = mock.Mock()
+        mock_storage.find_shared_pools.return_value = (
+            objects.SharedPoolList.from_list([{
+                'target_domain_id': 'test',
+                'pool_id': shared_pool.id,
+                'domain_id': 'default',
+            }])
+        )
+        mock_storage.get_pool.return_value = shared_pool
+        test_filter = self.FILTER(storage=mock_storage)
+
+        pools = test_filter.filter(self.context, objects.PoolList(), self.zone)
+
+        self.assertEqual(0, len(pools))
+
+    def test_keeps_own_pool_picked_by_previous_filters(self):
+        # The attribute filter picked the domain's own pool. The pools shared
+        # with the domain must not be added next to it.
+        own_id = '6c346011-e581-429b-a7a2-6cdf0aba91c3'
+        current_pools = objects.PoolList.from_list([
+            {'id': own_id, 'domain_id': 'test'},
+        ])
+        mock_storage = mock.Mock()
+        mock_storage.find_shared_pools.return_value = (
+            objects.SharedPoolList.from_list([
+                {'target_domain_id': 'test',
+                 'pool_id': '5fabcd37-262c-4cf3-8625-7f419434b6df',
+                 'domain_id': 'default'},
+                {'target_domain_id': 'test',
+                 'pool_id': '24702e43-8a52-440f-ab74-19fc16048860',
+                 'domain_id': 'iaas'},
+            ])
+        )
+        test_filter = self.FILTER(storage=mock_storage)
+
+        pools = test_filter.filter(self.context, current_pools, self.zone)
+
+        self.assertEqual([own_id], [pool.id for pool in pools])
+        mock_storage.get_pool.assert_not_called()
+
+    def test_drops_pool_not_available_to_domain(self):
+        # The previous filters picked a pool that is shared with another
+        # domain only.
+        current_pools = objects.PoolList.from_list([
+            {'id': '794ccc2c-d751-44fe-b57f-8894c9f5c842',
+             'domain_id': 'default'},
+        ])
+        mock_storage = mock.Mock()
+        mock_storage.find_shared_pools.return_value = (
+            objects.SharedPoolList.from_list([{
+                'target_domain_id': 'other',
+                'pool_id': '794ccc2c-d751-44fe-b57f-8894c9f5c842',
+                'domain_id': 'default',
+            }])
+        )
+        test_filter = self.FILTER(storage=mock_storage)
+
+        pools = test_filter.filter(self.context, current_pools, self.zone)
+
+        self.assertEqual(0, len(pools))
+
+    def test_domainless_context_ignores_shares(self):
+        domainless_context = mock.Mock(project_domain_id=None)
+        current_pools = objects.PoolList.from_list([
+            {'id': '24702e43-8a52-440f-ab74-19fc16048860',
+             'domain_id': 'default'},
+            {'id': '5fabcd37-262c-4cf3-8625-7f419434b6df',
+             'domain_id': 'iaas'},
+        ])
+        mock_storage = mock.Mock()
+        test_filter = self.FILTER(storage=mock_storage)
+
+        pools = test_filter.filter(
+            domainless_context, current_pools, self.zone
+        )
+
+        self.assertEqual(2, len(pools))
+        mock_storage.find_shared_pools.assert_not_called()
 
 
 class PoolDomainsAttributeFilter(SchedulerFilterTest):
