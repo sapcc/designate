@@ -464,6 +464,76 @@ class SchedulerAttributeFilterTest(SchedulerFilterTest):
 
         self.assertEqual(1, len(pools))
 
+    def _forced_pool_zone(self):
+        return objects.Zone(
+            name='example.com.',
+            type='PRIMARY',
+            email='hostmaster@example.com',
+            attributes=objects.ZoneAttributeList.from_list([
+                {'key': 'pool_id',
+                 'value': '6c346011-e581-429b-a7a2-6cdf0aba91c3'},
+            ])
+        )
+
+    def test_forced_pool_in_candidates(self):
+        self.useFixture(fixtures.MockPatchObject(policy, 'check'))
+        pools = objects.PoolList.from_list([
+            {'id': '6c346011-e581-429b-a7a2-6cdf0aba91c3'},
+            {'id': '5fabcd37-262c-4cf3-8625-7f419434b6df'},
+        ])
+
+        pools = self.test_filter.filter(
+            self.context, pools, self._forced_pool_zone())
+
+        self.assertEqual(1, len(pools))
+        self.assertEqual('6c346011-e581-429b-a7a2-6cdf0aba91c3', pools[0].id)
+
+    def test_forced_pool_not_in_candidates(self):
+        # The zone asks for a pool that an earlier filter removed, e.g. a
+        # pool not available to the user's domain.
+        self.useFixture(fixtures.MockPatchObject(policy, 'check'))
+        pools = objects.PoolList.from_list(
+            [{'id': '5fabcd37-262c-4cf3-8625-7f419434b6df'}]
+        )
+        pools[0].attributes = objects.PoolAttributeList.from_list(
+            [{'key': 'attribute_one', 'value': 'True'}]
+        )
+
+        self.assertRaises(
+            exceptions.NoValidPoolFound,
+            self.test_filter.filter,
+            self.context, pools, self._forced_pool_zone(),
+        )
+
+    def test_forced_pool_does_not_exist(self):
+        self.test_filter.storage.get_pool.side_effect = (
+            exceptions.PoolNotFound()
+        )
+        pools = objects.PoolList.from_list(
+            [{'id': '5fabcd37-262c-4cf3-8625-7f419434b6df'}]
+        )
+
+        self.assertRaises(
+            exceptions.NoValidPoolFound,
+            self.test_filter.filter,
+            self.context, pools, self._forced_pool_zone(),
+        )
+
+    def test_forced_pool_policy_failure(self):
+        self.useFixture(fixtures.MockPatchObject(
+            policy, 'check',
+            side_effect=exceptions.Forbidden
+        ))
+        pools = objects.PoolList.from_list(
+            [{'id': '6c346011-e581-429b-a7a2-6cdf0aba91c3'}]
+        )
+
+        self.assertRaises(
+            exceptions.Forbidden,
+            self.test_filter.filter,
+            self.context, pools, self._forced_pool_zone(),
+        )
+
 
 class SchedulerInDoubtDefaultPoolFilterTest(SchedulerFilterTest):
     FILTER = in_doubt_default_pool_filter.InDoubtDefaultPoolFilter

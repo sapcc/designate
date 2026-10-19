@@ -22,6 +22,11 @@ from designate.scheduler.filters import base
 
 LOG = logging.getLogger(__name__)
 
+FORCED_POOL_NOT_AVAILABLE = (
+    'The pool %s from the pool_id attribute does not exist or is not '
+    'available'
+)
+
 
 class AttributeFilter(base.Filter):
     """This allows users to choose the pool by supplying hints to this filter.
@@ -43,6 +48,10 @@ class AttributeFilter(base.Filter):
 
     The zone attributes are matched against the potential pool candidates, and
     any pools that do not match **all** hints are removed.
+
+    A ``pool_id`` attribute schedules the zone to that pool. If the pool does
+    not exist or is not among the candidates, the filter raises
+    NoValidPoolFound instead of leaving the choice to the next filters.
 
     .. warning::
 
@@ -72,7 +81,8 @@ class AttributeFilter(base.Filter):
                 try:
                     pool = self.storage.get_pool(context, pool_id)
                 except Exception:
-                    return PoolList()
+                    raise exceptions.NoValidPoolFound(
+                        FORCED_POOL_NOT_AVAILABLE % pool_id)
 
                 if domain_name.startswith('iaas'):
                     # Special case - IAAS Keystone Domains
@@ -91,6 +101,11 @@ class AttributeFilter(base.Filter):
                     pools = PoolList()
                     pools.append(pool)
                     return pools
+                # The pool is not among the candidates left by the earlier
+                # filters, e.g. it is not available to the domain. Fail here,
+                # so that no later filter, like fallback, picks another pool.
+                raise exceptions.NoValidPoolFound(
+                    FORCED_POOL_NOT_AVAILABLE % pool_id)
             else:
                 # otherwise - do attributes check as usual
                 zone_attributes = zone.attributes.to_dict()

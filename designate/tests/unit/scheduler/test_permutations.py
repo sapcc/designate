@@ -18,6 +18,7 @@ import testscenarios
 import designate.conf
 from designate import exceptions
 from designate import objects
+from designate import policy
 from designate import scheduler
 
 
@@ -27,6 +28,8 @@ load_tests = testscenarios.load_tests_apply_scenarios
 DEFAULT_POOL_ID = BRONZE_POOL_ID = '67d71c2a-645c-4dde-a6b8-60a172c9ede8'
 SILVER_POOL_ID = '5fabcd37-262c-4cf3-8625-7f419434b6df'
 GOLD_POOL_ID = '24702e43-8a52-440f-ab74-19fc16048860'
+# Not one of the test pools.
+OTHER_POOL_ID = 'a5a9e4a3-0c43-4ad3-8f61-c3b13b30c8de'
 
 
 def build_test_pools():
@@ -255,6 +258,32 @@ class FallbackSchedulerPermutationsTest(oslotest.base.BaseTestCase):
 
         self.assertEqual(DEFAULT_POOL_ID, result)
 
+    def test_forced_pool_not_found_is_not_replaced_by_default(self):
+        # The default pool is no substitute for the pool the zone asked for.
+        self.scheduler.storage.get_pool.side_effect = (
+            exceptions.PoolNotFound()
+        )
+        zone = build_zone({'pool_id': OTHER_POOL_ID})
+
+        self.assertRaises(
+            exceptions.NoValidPoolFound,
+            self.scheduler.schedule_zone, self.context, zone
+        )
+
+    @mock.patch.object(policy, 'check')
+    def test_forced_pool_not_available_is_not_replaced_by_default(
+            self, mock_check):
+        # The pool exists, but it is not among the candidates.
+        self.scheduler.storage.get_pool.return_value = objects.Pool(
+            id=OTHER_POOL_ID
+        )
+        zone = build_zone({'pool_id': OTHER_POOL_ID})
+
+        self.assertRaises(
+            exceptions.NoValidPoolFound,
+            self.scheduler.schedule_zone, self.context, zone
+        )
+
 
 OWNER_DOMAIN_ID = 'owner-domain'
 IAAS_DOMAIN_ID = 'iaas-domain'
@@ -424,6 +453,37 @@ class DomainIDSchedulerPermutationsTest(oslotest.base.BaseTestCase):
         self.context.project_domain_id = None
 
         self.assertEqual(BRONZE_POOL_ID, self.schedule(service_tier='bronze'))
+
+    @mock.patch.object(policy, 'check')
+    def test_forced_pool_shared_with_domain(self, mock_check):
+        self.assertEqual(GOLD_POOL_ID, self.schedule(pool_id=GOLD_POOL_ID))
+
+    @mock.patch.object(policy, 'check')
+    def test_forced_own_pool_with_shared_pools(self, mock_check):
+        self.pools[0].domain_id = CUSTOMER_DOMAIN_ID
+
+        self.assertEqual(BRONZE_POOL_ID, self.schedule(pool_id=BRONZE_POOL_ID))
+
+    @mock.patch.object(policy, 'check')
+    def test_forced_pool_not_available_to_domain(self, mock_check):
+        # Bronze is neither owned by nor shared with the customer domain.
+        self.assertRaises(
+            exceptions.NoValidPoolFound, self.schedule, pool_id=BRONZE_POOL_ID
+        )
+
+    @mock.patch.object(policy, 'check')
+    def test_forced_pool_does_not_exist(self, mock_check):
+        self.assertRaises(
+            exceptions.NoValidPoolFound, self.schedule,
+            pool_id=OTHER_POOL_ID
+        )
+
+    def test_misspelled_pool_id_attribute(self):
+        # No pool has a pool-id attribute, so no pool matches the zone.
+        self.assertRaises(
+            exceptions.NoValidPoolFound, self.schedule,
+            **{'pool-id': GOLD_POOL_ID}
+        )
 
     def test_zone_without_attributes_is_ambiguous(self):
         # Two pools are available to the domain and nothing picks one.

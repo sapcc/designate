@@ -433,3 +433,17 @@ class SharedPoolSchedulingTest(designate.tests.functional.TestCase):
     def test_forced_pool_shared_with_domain(self):
         self.assertEqual('gold',
                          self._schedule(pool_id=self.pools['gold'].id))
+
+    def test_forced_pool_not_available_to_domain(self):
+        # get_pool() finds bronze, but bronze is not among the candidates.
+        self._assert_no_valid_pool(pool_id=self.pools['bronze'].id)
+
+    def test_forced_pool_does_not_exist(self):
+        self._assert_no_valid_pool(pool_id=generate_uuid())
+
+    def test_forced_pool_with_invalid_id(self):
+        self._assert_no_valid_pool(pool_id='not-a-pool-id')
+
+    def test_misspelled_pool_id_attribute(self):
+        # No pool has a pool-id attribute, so no pool matches the zone.
+        self._assert_no_valid_pool(**{'pool-id': self.pools['gold'].id})
