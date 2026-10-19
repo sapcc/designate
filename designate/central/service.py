@@ -186,10 +186,13 @@ class Service(service.RPCService):
             raise exceptions.InvalidRecordSetName('Name too long')
 
         # RecordSets must be contained in the parent zone
-        if (recordset_name != zone['name'] and
-                not recordset_name.endswith("." + zone['name'])):
+        if not self._is_recordset_name_within_zone(recordset_name, zone):
             raise exceptions.InvalidRecordSetLocation(
                 'RecordSet is not contained within it\'s parent zone')
+
+    def _is_recordset_name_within_zone(self, recordset_name, zone):
+        return (recordset_name == zone['name'] or
+                recordset_name.endswith("." + zone['name']))
 
     def _is_valid_recordset_placement(self, context, zone, recordset_name,
                                       recordset_type, recordset_id=None):
@@ -236,17 +239,18 @@ class Service(service.RPCService):
         child_zones = self.storage.find_zones(
             context, {"parent_zone_id": zone.id})
         for child_zone in child_zones:
-            try:
-                self._is_valid_recordset_name(
-                    context, child_zone, recordset_name)
-            except Exception:
-                continue
-            else:
-                msg = (
-                    'RecordSet belongs in a child zone: {}'
-                    .format(child_zone['name'])
-                )
-                raise exceptions.InvalidRecordSetLocation(msg)
+            if self._is_recordset_name_within_zone(recordset_name, child_zone):
+                if not policy.check('create_delegation_recordset', context, do_raise=False):
+                    msg = (
+                        'RecordSet belongs in a child zone: {}'
+                        .format(child_zone['name'])
+                    )
+                    raise exceptions.InvalidRecordSetLocation(msg)
+
+                LOG.info("Allowing recordset '%s' in parent zone '%s' despite child zone "
+                                    "'%s' -- create_delegation_recordset policy granted.",
+                                    recordset_name, zone.name, child_zone['name'])
+                return
 
     def _is_valid_recordset_records(self, recordset):
         """
