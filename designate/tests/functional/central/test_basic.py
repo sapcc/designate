@@ -601,17 +601,19 @@ class CentralZoneTestCase(CentralBasic):
         zone = unit.RoObject(
             name='example.org.', id=CentralZoneTestCase.zone_id
         )
-        self.service._is_valid_recordset_name = mock.Mock()
         self.service.storage.find_zones.return_value = [
             unit.RoObject(name='foo.example.org.')
         ]
-
-        self.assertRaisesRegex(
-            exceptions.InvalidRecordSetLocation,
-            'RecordSet belongs in a child zone: foo.example.org.',
-            self.service._is_valid_recordset_placement_subzone,
-            self.context, zone, 'bar.example.org.'
-        )
+        with mock.patch(
+            'designate.central.service.policy.check',
+            return_value= False,
+        ):
+            self.assertRaisesRegex(
+                exceptions.InvalidRecordSetLocation,
+                'RecordSet belongs in a child zone: foo.example.org.',
+                self.service._is_valid_recordset_placement_subzone,
+                self.context, zone, 'bar.foo.example.org.'
+            )
 
     def test_is_valid_recordset_records(self):
         recordset = unit.RoObject(

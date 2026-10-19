@@ -140,6 +140,18 @@ rules = [
         ],
         deprecated_rule=deprecated_create_recordset
     ),
+    policy.DocumentedRuleDefault(
+        name="create_delegation_recordset",
+        check_str=base.RULE_ADMIN,
+        scope_types=[constants.PENDING],
+        description="Create NS and glue recordsets in a parent zone even if a child zone for that name exists.",
+        operations=[
+            {
+                'path': '/v2/zones/{zone_id}/recordsets',
+                'method': 'POST'
+            }
+        ],
+    ),
     policy.RuleDefault(
         name="get_recordsets",
         check_str=base.SYSTEM_OR_PROJECT_READER,
