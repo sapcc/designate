@@ -13,10 +13,13 @@
 # under the License.
 from oslo_messaging.rpc import dispatcher as rpc_dispatcher
 from oslo_utils.uuidutils import generate_uuid
+import testscenarios
 
 import designate.tests.functional
 from designate import exceptions
 from designate import objects
+
+load_tests = testscenarios.load_tests_apply_scenarios
 
 
 class SharedPoolCentralTest(designate.tests.functional.TestCase):
@@ -323,3 +326,124 @@ class SharedPoolCentralTest(designate.tests.functional.TestCase):
         # But pool.domain_id IS NULL means it's a system pool —
         # visible to all via the domain_id.is_(None) condition in _find_pools
         self.assertIsNone(pool.domain_id)
+
+
+class SharedPoolSchedulingTest(designate.tests.functional.TestCase):
+    """Schedule zones into pools shared between Keystone domains.
+
+    Central picks the pool with the pool queries of storage, as it does for
+    API requests: find_pools() returns only the pools of the user's domain,
+    the pools shared with it and the pools without a domain, get_pool()
+    returns any pool. Every test runs with domain_id last (the order of the
+    designate helm chart) and first in the filter chain.
+    """
+    scenarios = [
+        ('domain_id_last',
+         {'scheduler_filters': ['attribute', 'pool_id_attribute',
+                                'domain_id']}),
+        ('domain_id_first',
+         {'scheduler_filters': ['domain_id', 'attribute',
+                                'pool_id_attribute']}),
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.config(scheduler_filters=self.scheduler_filters,
+                    group='service:central')
+        self.policy({'create_zone': '@', 'zone_create_forced_pool': '@'})
+
+        owner_domain_id = generate_uuid()
+        self.customer_domain_id = generate_uuid()
+        self.context = self._domain_context(self.customer_domain_id)
+        self.zone_count = 0
+
+        # Bronze, silver and gold belong to another domain, silver and gold
+        # are shared with the customer domain.
+        self.pools = {}
+        for tier in ('bronze', 'silver', 'gold'):
+            self._create_tier_pool(tier, owner_domain_id)
+        self._share('silver', self.customer_domain_id)
+        self._share('gold', self.customer_domain_id)
+
+    def _domain_context(self, domain_id):
+        return self.get_context(project_id=generate_uuid(),
+                                user_id=generate_uuid(),
+                                project_domain_id=domain_id,
+                                roles=['member'])
+
+    def _create_tier_pool(self, tier, domain_id):
+        self.pools[tier] = self.create_pool(
+            name='pool-%s' % tier,
+            domain_id=domain_id,
+            attributes=[{'key': 'service_tier', 'value': tier}],
+            ns_records=[{'priority': 1,
+                         'hostname': 'ns1.%s.example.org.' % tier}])
+
+    def _share(self, tier, target_domain_id):
+        pool = self.pools[tier]
+        self.central_service.share_pool(
+            self.admin_context, pool.id,
+            objects.SharedPool.from_dict({
+                'pool_id': pool.id,
+                'domain_id': pool.domain_id,
+                'target_domain_id': target_domain_id,
+            }))
+
+    def _schedule(self, context=None, **attributes):
+        """Create a zone and return the tier of the pool it got."""
+        self.zone_count += 1
+        zone = self.create_zone(
+            context=context or self.context,
+            name='zone%d.example.com.' % self.zone_count,
+            attributes=attributes)
+        for tier, pool in self.pools.items():
+            if pool.id == zone.pool_id:
+                return tier
+        return zone.pool_id
+
+    def _assert_no_valid_pool(self, context=None, **attributes):
+        exc = self.assertRaises(rpc_dispatcher.ExpectedException,
+                                self._schedule, context, **attributes)
+        self.assertEqual(exceptions.NoValidPoolFound, exc.exc_info[0])
+
+    def test_zone_in_pool_shared_with_domain(self):
+        self.assertEqual('gold', self._schedule(service_tier='gold'))
+        self.assertEqual('silver', self._schedule(service_tier='silver'))
+
+    def test_pool_not_available_to_domain(self):
+        self._assert_no_valid_pool(service_tier='bronze')
+
+    def test_pool_not_available_with_single_share(self):
+        # Only silver is shared with this domain. A zone asking for gold
+        # must fail instead of being placed into silver.
+        domain_id = generate_uuid()
+        self._share('silver', domain_id)
+        context = self._domain_context(domain_id)
+
+        self._assert_no_valid_pool(context, service_tier='gold')
+        self.assertEqual('silver',
+                         self._schedule(context, service_tier='silver'))
+
+    def test_zone_in_own_pool_with_shared_pools(self):
+        self._create_tier_pool('copper', self.customer_domain_id)
+
+        self.assertEqual('copper', self._schedule(service_tier='copper'))
+        self.assertEqual('gold', self._schedule(service_tier='gold'))
+
+    def test_forced_pool_shared_with_domain(self):
+        self.assertEqual('gold',
+                         self._schedule(pool_id=self.pools['gold'].id))
+
+    def test_forced_pool_not_available_to_domain(self):
+        # get_pool() finds bronze, but bronze is not among the candidates.
+        self._assert_no_valid_pool(pool_id=self.pools['bronze'].id)
+
+    def test_forced_pool_does_not_exist(self):
+        self._assert_no_valid_pool(pool_id=generate_uuid())
+
+    def test_forced_pool_with_invalid_id(self):
+        self._assert_no_valid_pool(pool_id='not-a-pool-id')
+
+    def test_misspelled_pool_id_attribute(self):
+        # No pool has a pool-id attribute, so no pool matches the zone.
+        self._assert_no_valid_pool(**{'pool-id': self.pools['gold'].id})

@@ -79,7 +79,10 @@ class Scheduler:
             )
 
         if len(pools) > 1:
-            raise exceptions.MultiplePoolsFound()
+            raise exceptions.MultiplePoolsFound(
+                'There are multiple pools that matched your request, use '
+                'the zone attributes to choose one'
+            )
         if not pools:
             raise exceptions.NoValidPoolFound(
                 'There are no pools that matched your request'

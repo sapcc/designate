@@ -108,11 +108,6 @@ class NoServersConfigured(ConfigurationError):
     error_type = 'no_servers_configured'
 
 
-class MultiplePoolsFound(ConfigurationError):
-    error_code = 500
-    error_type = 'multiple_pools_found'
-
-
 class NoPoolTargetsConfigured(ConfigurationError):
     error_code = 500
     error_type = 'no_pool_targets_configured'
@@ -532,3 +527,7 @@ class InvalidDomain(BadRequest):
 
 class PoolWithoutDomainId(BadRequest):
     error_type = 'invalid_pool_domain_id'
+
+
+class MultiplePoolsFound(BadRequest):
+    error_type = 'multiple_pools_found'
