@@ -63,6 +63,8 @@ function configure_designate {
 
     # API Configuration
     sudo cp $DESIGNATE_DIR/etc/designate/api-paste.ini $DESIGNATE_APIPASTE_CONF
+    sudo chown $STACK_USER:$STACK_USER $DESIGNATE_APIPASTE_CONF
+    sudo chmod 0644 $DESIGNATE_APIPASTE_CONF
     iniset $DESIGNATE_CONF service:api enabled_extensions_v2 $DESIGNATE_ENABLED_EXTENSIONS_V2
     iniset $DESIGNATE_CONF service:api enabled_extensions_admin $DESIGNATE_ENABLED_EXTENSIONS_ADMIN
     iniset $DESIGNATE_CONF service:api enable_host_header True
@@ -96,7 +98,10 @@ function configure_designate {
 
     # Root Wrap
     sudo cp $DESIGNATE_DIR/etc/designate/rootwrap.conf $DESIGNATE_ROOTWRAP_CONF
+    sudo chmod 0644 $DESIGNATE_ROOTWRAP_CONF
+    sudo chown $STACK_USER $DESIGNATE_ROOTWRAP_CONF
     iniset $DESIGNATE_ROOTWRAP_CONF DEFAULT filters_path $DESIGNATE_DIR/etc/designate/rootwrap.d root-helper
+    
 
     # Oslo Concurrency
     iniset $DESIGNATE_CONF oslo_concurrency lock_path "$DESIGNATE_STATE_PATH"

@@ -139,6 +139,8 @@ EOF
     fi
 
     sudo chown $STACK_USER $BIND_CFG_DIR
+    sudo chown $STACK_USER:$STACK_USER $DESIGNATE_CONF_DIR/pools.yaml
+    sudo chmod 0644 $DESIGNATE_CONF_DIR/pools.yaml
 
     # create rndc key and config
     sudo rndc-confgen -a -c $BIND_CFG_DIR/rndc.key
