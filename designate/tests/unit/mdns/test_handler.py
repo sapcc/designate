@@ -61,13 +61,13 @@ class MdnsHandleTest(oslotest.base.BaseTestCase):
     @mock.patch.object(rpc, 'get_client', mock.Mock())
     @mock.patch.object(dns.resolver.Resolver, 'resolve')
     def test_notify(self, mock_query):
-        self.storage.find_zone.return_value = objects.Zone(
+        self.storage.find_zones.return_value = [objects.Zone(
             id='e2bed4dc-9d01-11e4-89d3-123b93f75cba',
             serial=2,
             masters=objects.ZoneMasterList.from_list([
                 {'host': '192.0.2.1', 'port': 53},
             ])
-        )
+        )]
         mock_query.return_value = [
             mock.Mock(serial=1)
         ]
@@ -92,13 +92,13 @@ class MdnsHandleTest(oslotest.base.BaseTestCase):
                        mock.Mock())
     @mock.patch.object(dns.resolver.Resolver, 'resolve')
     def test_notify_same_serial(self, mock_query):
-        self.storage.find_zone.return_value = objects.Zone(
+        self.storage.find_zones.return_value = [objects.Zone(
             id='e2bed4dc-9d01-11e4-89d3-123b93f75cba',
             serial=1,
             masters=objects.ZoneMasterList.from_list([
                 {'host': '192.0.2.1', 'port': 53},
             ])
-        )
+        )]
         mock_query.return_value = [
             mock.Mock(serial=1)
         ]
@@ -130,7 +130,7 @@ class MdnsHandleTest(oslotest.base.BaseTestCase):
         self.assertEqual(dns.rcode.FORMERR, tuple(response)[0].rcode())
 
     def test_notify_zone_not_found(self):
-        self.storage.find_zone.side_effect = exceptions.ZoneNotFound
+        self.storage.find_zones.return_value = []
 
         request = dns.message.make_query(
             'www.example.org.', dns.rdatatype.SOA
@@ -142,11 +142,12 @@ class MdnsHandleTest(oslotest.base.BaseTestCase):
         self.assertEqual(dns.rcode.NOTAUTH, tuple(response)[0].rcode())
 
     def test_notify_no_master_addr(self):
-        self.storage.find_zone.return_value = objects.Zone(
+        self.storage.find_zones.return_value = [objects.Zone(
+            name='www.example.org.',
             masters=objects.ZoneMasterList.from_list([
                 {'host': '192.0.2.1', 'port': 53},
             ])
-        )
+        )]
 
         request = dns.message.make_query(
             'www.example.org.', dns.rdatatype.SOA
@@ -158,7 +159,8 @@ class MdnsHandleTest(oslotest.base.BaseTestCase):
         self.assertEqual(dns.rcode.REFUSED, tuple(response)[0].rcode())
 
         self.assertIn(
-            'NOTIFY for None from non-master server 203.0.113.1, refusing.',
+            'NOTIFY for www.example.org. from non-master server '
+            '203.0.113.1, refusing.',
             self.stdlog.logger.output
         )
 
@@ -373,6 +375,10 @@ class HandleRecordQueryTest(oslotest.base.BaseTestCase):
 
     def test_handle_record_query_empty_recordlist(self):
         # bug #1550441
+        self.storage.find_zone.return_value = objects.Zone(
+            id='e2bed4dc-9d01-11e4-89d3-123b93f75cba',
+            name='example.org.',
+        )
         self.storage.find_recordset.return_value = objects.RecordSet(
             name='www.example.org.',
             type='A',
@@ -390,13 +396,6 @@ class HandleRecordQueryTest(oslotest.base.BaseTestCase):
             self.assertEqual(33, len(out))
 
     def test_handle_record_query_zone_not_found(self):
-        self.storage.find_recordset.return_value = objects.RecordSet(
-            name='www.example.org.',
-            type='A',
-            records=objects.RecordList(objects=[
-                objects.Record(data='192.0.2.2'),
-            ])
-        )
         self.storage.find_zone.side_effect = exceptions.ZoneNotFound
 
         request = dns.message.make_query('www.example.org.', dns.rdatatype.A)
@@ -407,13 +406,6 @@ class HandleRecordQueryTest(oslotest.base.BaseTestCase):
         self.assertEqual(dns.rcode.REFUSED, response[0].rcode())
 
     def test_handle_record_query_forbidden(self):
-        self.storage.find_recordset.return_value = objects.RecordSet(
-            name='www.example.org.',
-            type='A',
-            records=objects.RecordList(objects=[
-                objects.Record(data='192.0.2.2'),
-            ])
-        )
         self.storage.find_zone.side_effect = exceptions.Forbidden
 
         request = dns.message.make_query('www.example.org.', dns.rdatatype.A)
@@ -424,6 +416,10 @@ class HandleRecordQueryTest(oslotest.base.BaseTestCase):
         self.assertEqual(dns.rcode.REFUSED, response[0].rcode())
 
     def test_handle_record_query_find_recordsed_forbidden(self):
+        self.storage.find_zone.return_value = objects.Zone(
+            id='e2bed4dc-9d01-11e4-89d3-123b93f75cba',
+            name='example.org.',
+        )
         self.storage.find_recordset.side_effect = exceptions.Forbidden
 
         request = dns.message.make_query('www.example.org.', dns.rdatatype.A)
@@ -434,6 +430,10 @@ class HandleRecordQueryTest(oslotest.base.BaseTestCase):
         self.assertEqual(dns.rcode.REFUSED, response[0].rcode())
 
     def test_handle_record_query_find_recordsed_not_found(self):
+        self.storage.find_zone.return_value = objects.Zone(
+            id='e2bed4dc-9d01-11e4-89d3-123b93f75cba',
+            name='example.org.',
+        )
         self.storage.find_recordset.side_effect = exceptions.NotFound
 
         request = dns.message.make_query('www.example.org.', dns.rdatatype.A)

@@ -113,25 +113,41 @@ class RequestHandler:
             'deleted': False
         }
 
-        try:
-            zone = self.storage.find_zone(context, criterion)
-        except exceptions.ZoneNotFound:
+        # No pool_id here deliberately: NOTIFY has no TSIG requirement
+        # under any configuration, so at this point we don't know
+        # which pool the sender is even talking about. We must look
+        # across every pool and disambiguate afterwards.
+        matching_zones = self.storage.find_zones(context, criterion)
+        if not matching_zones:
+            # No SECONDARY zone with this name exists in any pool.
             response.set_rcode(dns.rcode.NOTAUTH)
             yield response
             return
 
         notify_addr = request.environ['addr'][0]
 
-        # We check if the src_master which is the assumed master for the zone
-        # that is sending this NOTIFY OP is actually the master. If it's not
-        # We'll reply but don't do anything with the NOTIFY.
-        master_addr = zone.get_master_by_ip(notify_addr)
-        if not master_addr:
+        # There can be more than one SECONDARY zone with this name
+        # across different pools/tenants. Disambiguate using the trust
+        # mechanism NOTIFY already relies on - whether the sending
+        # address is a configured master for the zone - rather than
+        # assuming the name is unique across pools.
+        zone = None
+        master_addr = None
+        for candidate in matching_zones:
+            master_addr = candidate.get_master_by_ip(notify_addr)
+            if master_addr:
+                zone = candidate
+                break
+
+        if not zone:
+            # None of the matching zones (in any pool) list this
+            # sender as a master - refuse, same as the classic
+            # single-zone "wrong master" case.
             LOG.warning(
                 'NOTIFY for %(name)s from non-master server %(addr)s, '
                 'refusing.',
                 {
-                    'name': zone.name,
+                    'name': name,
                     'addr': notify_addr
                 }
             )
@@ -193,6 +209,33 @@ class RequestHandler:
                     tsigkey.scope
                 )
         return criterion
+
+    def _find_zone_by_ancestor_walk(self, context, request, name):
+        """Find the zone that would be authoritative for `name`.
+
+        Walks from the full query name up through each ancestor label
+        - e.g. for 'www.example.com.': tries 'www.example.com.' itself
+        (the record may be a zone apex), then 'example.com.', then
+        'com.' - stopping at the first level that matches an existing
+        zone. Every candidate is scoped by the same pool/zone identity
+        derived from the request's TSIG key (or the default pool if
+        unsigned, via `_zone_criterion_from_request`), which is what
+        stops a same-named zone in a different pool from being
+        matched instead. Returns None if no ancestor at any level
+        matches within that scope.
+        """
+        pool_criterion = self._zone_criterion_from_request(request)
+        labels = name.split('.')
+
+        for i in range(len(labels) - 1):
+            ancestor_name = '.'.join(labels[i:])
+            criterion = dict(pool_criterion, name=ancestor_name)
+            try:
+                return self.storage.find_zone(context, criterion)
+            except exceptions.ZoneNotFound:
+                continue
+
+        return None
 
     def _handle_axfr(self, request):
         context = request.environ['context']
@@ -316,10 +359,21 @@ class RequestHandler:
             name = q_rrset.name.to_text()
             # TODO(vinod) once validation is separated from the api,
             # validate the parameters
+
+            # Find the zone containing this record (apex or not),
+            # scoped to the requester's own pool throughout - same
+            # scoping _handle_axfr uses. This never falls back to a
+            # pool-blind lookup that could collide with a matching
+            # name+type in another pool, so split-horizon setups
+            # (same zone name in multiple pools) resolve correctly.
+            zone = self._find_zone_by_ancestor_walk(context, request, name)
+            if zone is None:
+                raise exceptions.ZoneNotFound()
+
             criterion = {
+                'zone_id': zone.id,
                 'name': name,
                 'type': dns.rdatatype.to_text(q_rrset.rdtype),
-                'zones_deleted': False
             }
             recordset = self.storage.find_recordset(context, criterion)
 
@@ -348,23 +402,6 @@ class RequestHandler:
         except exceptions.Forbidden:
             LOG.info('Forbidden, refusing. Question was %(qr)s',
                      {'qr': q_rrset})
-            yield self._handle_query_error(request, dns.rcode.REFUSED)
-            return
-
-        try:
-            criterion = self._zone_criterion_from_request(
-                request, {'id': recordset.zone_id})
-            zone = self.storage.find_zone(context, criterion)
-
-        except exceptions.ZoneNotFound:
-            LOG.warning('ZoneNotFound while handling query request. '
-                        'Question was %(qr)s', {'qr': q_rrset})
-            yield self._handle_query_error(request, dns.rcode.REFUSED)
-            return
-
-        except exceptions.Forbidden:
-            LOG.warning('Forbidden while handling query request. '
-                        'Question was %(qr)s', {'qr': q_rrset})
             yield self._handle_query_error(request, dns.rcode.REFUSED)
             return
 
