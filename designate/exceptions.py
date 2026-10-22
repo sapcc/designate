@@ -438,6 +438,10 @@ class PoolNotFound(NotFound):
     error_type = 'pool_not_found'
 
 
+class SharedPoolNotFound(NotFound):
+    error_type = 'shared_pool_not_found'
+
+
 class NoValidPoolFound(NotFound):
     error_type = 'no_valid_pool_found'
 
@@ -511,3 +515,20 @@ class MissingProjectID(BadRequest):
 class ZoneShared(DesignateException):
     error_code = 400
     error_type = 'zone_is_shared'
+
+
+class DuplicateSharedPool(Duplicate):
+    error_type = 'duplicate_shared_pool'
+
+
+class PoolShared(DesignateException):
+    error_code = 400
+    error_type = 'pool_is_shared'
+
+
+class InvalidDomain(BadRequest):
+    error_type = 'invalid_domain'
+
+
+class PoolWithoutDomainId(BadRequest):
+    error_type = 'invalid_pool_domain_id'

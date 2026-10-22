@@ -52,7 +52,8 @@ class AdminApiTestCase(designate.tests.functional.TestCase):
         # Inject the TestContext middleware
         self.app = middleware.TestContextMiddleware(
             self.app, self.admin_context.project_id,
-            self.admin_context.project_id)
+            self.admin_context.project_id,
+            self.admin_context.domain_id)
 
         # Obtain a test client
         self.client = TestApp(self.app)

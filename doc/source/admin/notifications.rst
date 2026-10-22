@@ -44,6 +44,8 @@ They are emitted by Central on the following events:
 * dns.pool.create
 * dns.pool.update
 * dns.pool.delete
+* dns.pool.share
+* dns.pool.unshare
 * dns.domain.update
 * dns.zone.update
 * dns.zone_transfer_request.create

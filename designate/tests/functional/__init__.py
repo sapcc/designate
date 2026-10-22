@@ -346,6 +346,14 @@ class TestCase(base.BaseTestCase):
         'task_type': 'EXPORT'
     }]
 
+    shared_pool_fixtures = [
+        {
+            "target_domain_id": "target_domain_id",
+            "pool_id": None,
+            "domain_id": "1ca6baef-4404-3ad2-a52b-a82df5752b62",
+        }
+    ]
+
     def setUp(self):
         super().setUp()
 
@@ -749,8 +757,8 @@ class TestCase(base.BaseTestCase):
 
         values = self.get_pool_fixture(fixture=fixture, values=kwargs)
 
-        if 'tenant_id' not in values:
-            values['tenant_id'] = context.project_id
+        if 'domain_id' not in values:
+            values['domain_id'] = context.project_domain_id
 
         return self.central_service.create_pool(
             context, objects.Pool.from_dict(values))
@@ -769,6 +777,13 @@ class TestCase(base.BaseTestCase):
         return self.storage.create_pool_attribute(
             context, default_pool_id,
             objects.PoolAttribute.from_dict(values))
+
+    def get_shared_pool_fixture(self, fixture=0, values=None):
+        values = values or {}
+
+        _values = copy.copy(self.shared_pool_fixtures[fixture])
+        _values.update(values)
+        return _values
 
     def create_zone_transfer_request(self, zone, **kwargs):
         context = kwargs.pop('context', self.admin_context)
@@ -871,6 +886,16 @@ class TestCase(base.BaseTestCase):
             self.assertEqual(
                 in_arginfo, im_arginfo,
                 "Method Signature for '%s' mismatched" % name)
+
+    def share_pool(self, **kwargs):
+        context = kwargs.pop('context', self.admin_context)
+        fixture = kwargs.pop('fixture', 0)
+
+        values = self.get_shared_pool_fixture(fixture, values=kwargs)
+
+        return self.central_service.share_pool(
+            context, kwargs['pool_id'], objects.SharedPool.from_dict(values)
+        )
 
     def wait_for_condition(self, condition, interval=0.3, timeout=2):
         """Wait for a condition to be true or raise an exception after
