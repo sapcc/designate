@@ -509,12 +509,14 @@ class Service(service.RPCService):
         adjusted_zone_records = (
             zone_records - recordset_records + len(recordset.records))
 
-        self.quota.limit_check(context, zone.tenant_id,
-                               zone_records=adjusted_zone_records)
+        # Only enforce quota for non-catalog zones:
+        if zone.type != constants.ZONE_CATALOG:
+            self.quota.limit_check(context, zone.tenant_id,
+                                   zone_records=adjusted_zone_records)
 
-        # Ensure the records per recordset quota is OK
-        self.quota.limit_check(context, zone.tenant_id,
-                               recordset_records=len(recordset.records))
+            # Ensure the records per recordset quota is OK
+            self.quota.limit_check(context, zone.tenant_id,
+                                   recordset_records=len(recordset.records))
 
     def _generate_record_serial(self, zone, increment_serial):
         if not increment_serial:
@@ -976,10 +978,16 @@ class Service(service.RPCService):
 
         policy.check('find_zones', context, target)
 
-        if 'admin' not in context.roles:
-            if criterion is None:
-                criterion = {}
+        if criterion is None:
+            criterion = {}
+
+        # we forbid to look for catalog zones and hide those by default
+        if 'type' not in criterion.keys():
             criterion['type'] = '!CATALOG'
+        elif criterion.get('type') == 'CATALOG':
+            if not context.is_admin:
+                msg = 'This operation is not allowed for non-admins.'
+                raise exceptions.Forbidden(msg)
 
         return self.storage.find_zones(context, criterion, marker, limit,
                                        sort_key, sort_dir)
