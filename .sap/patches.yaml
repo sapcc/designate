@@ -1,0 +1,161 @@
+# patches-2024.yaml — snapshot of stable/2024.2-m3, derived from PATCH-MIGRATION-PLAN.md
+#
+# All patches are recorded as `integrated` (they are all present on the 2024.2-m3
+# branch). Walk through and flip the ones upstream now covers to `status: upstreamed`.
+# The `note` fields carry the upstream-comparison findings from the migration plan;
+# the strongest upstreamed candidates are PATCH-011, PATCH-014, PATCH-022.
+
+schema_version: 1
+release: stable/2024.2-m3
+
+patches:
+  - id: PATCH-001
+    title: CI / Concourse Setup
+    depends_on: []
+    status: integrated
+    commits: [72b232ee, 09dc37fe, e47223f2]
+   
+  - id: PATCH-002
+    title: Custom Requirements & Proprietary Forks
+    depends_on: []
+    status: integrated
+    commits: [bb69d191, d28aa0f4, 4b3283db, beb7ad71, 56952234, a858f98a, b23425dd, 5ef18dc7]
+
+  - id: PATCH-003
+    title: Zone Import into Non-Default Pool
+    depends_on: []
+    status: integrated
+    commits: [25d2da84]
+
+  - id: PATCH-004
+    title: SOA Fields Editable via API (refresh/retry/expire/minimum/ttl)
+    depends_on: []
+    status: integrated
+    commits: [dae6ca3d]
+
+  - id: PATCH-005
+    title: Zone Serial Settable via API
+    depends_on: [PATCH-004]
+    status: integrated
+    commits: [e13b4c3c]
+
+  - id: PATCH-006
+    title: Sub-/Super-Zone Policy Checks
+    depends_on: []
+    status: integrated
+    commits: [6818c5c5, 9fb7e380, 06648d66, cc6309b0, 082c7a66]
+
+  - id: PATCH-007
+    title: Attribute Filter Considers pool_id
+    depends_on: []
+    status: integrated
+    commits: [e8ba3450]
+
+  - id: PATCH-008
+    title: F5 Express DNS Backend Driver
+    depends_on: []
+    status: integrated
+    commits: [9ee1b0bf]
+
+  - id: PATCH-009
+    title: Elevated Context on Zone Update
+    depends_on: []
+    status: integrated
+    commits: [023cd47f]
+
+  - id: PATCH-010
+    title: TXT Record Handling (Revert Split, 65k Limit, Quote Validation)
+    depends_on: []
+    status: integrated
+    commits: [fb59c48c, 731533bd, eae63440]
+
+  - id: PATCH-011
+    title: Stop Service Status & Cleanup
+    depends_on: [PATCH-022]
+    status: integrated
+    commits: [db5b62f1, df733dbe, dd3875b9]
+
+  - id: PATCH-012
+    title: WSGI Loads secrets.conf
+    depends_on: []
+    status: integrated
+    commits: [ee49875d]
+
+  - id: PATCH-013
+    title: Non-Unix Serial Formats (RFC1982)
+    depends_on: [PATCH-005]
+    status: integrated
+    commits: [ffd279ec, 89eb55c1]
+
+  - id: PATCH-014
+    title: Validate API Filter as str
+    depends_on: []
+    status: integrated
+    commits: [26bd9b8d]
+
+  - id: PATCH-015
+    title: Better Stale Zone Detection (updated_at, max_prop_time)
+    depends_on: [PATCH-013]
+    status: integrated
+    commits: [7b0d7706]
+
+  - id: PATCH-016
+    title: Force Option for Zone Import
+    depends_on: [PATCH-003, PATCH-018]
+    status: integrated
+    commits: [912fa85b, 7ce9eb5c]
+
+  - id: PATCH-017
+    title: Granular Recordset Policies (create/update/delete)
+    depends_on: [PATCH-016]
+    status: integrated
+    commits: [21059f91]
+
+  - id: PATCH-018
+    title: Zone Sharing (Dalmatian Merge)
+    depends_on: []
+    status: integrated
+    commits: [d6653fad, 3bcbe4ba, 5841efd9, 3b746107]
+
+  - id: PATCH-019
+    title: Remove RE_FIP Backslash (raw string)
+    depends_on: []
+    status: integrated
+    commits: [9e7c8738]
+
+  - id: PATCH-020
+    title: Zone Creation in Foreign Tenants via Policy
+    depends_on: [PATCH-006]
+    status: integrated
+    commits: [3a9b03d6]
+
+  - id: PATCH-021
+    title: Catalog Zones for ccloud
+    depends_on: []
+    status: integrated
+    commits: [9727ef32, ccd0d95c, 0978c422]
+
+  - id: PATCH-022
+    title: HTTPS & SVCB Record Types (RFC9460)
+    depends_on: []
+    status: integrated
+    commits: [23765b04]
+              
+  - id: PATCH-023
+    title: Pools RBAC (SOV/IAAS)
+    depends_on: [PATCH-006, PATCH-007]
+    status: integrated
+    commits: [bde3de17, ae94582c, a27b0dde, 2123ecc4]
+    migrations: [591b07cc1eab]
+            
+  - id: PATCH-024
+    title: Zone Move Between Pools
+    depends_on: [PATCH-023]
+    status: integrated
+    commits: [610a1f8c]                
+
+  - id: PATCH-025
+    title: CVE-2026-71193/71194 (cross-tenant/-pool ownership bypass)
+    depends_on: [PATCH-023]
+    status: integrated
+    commits: [fa08e037]                
