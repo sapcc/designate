@@ -160,6 +160,54 @@ class APIV2ZoneImportExportTest(v2.ApiV2TestCase):
 
         self.assertEqual(pool.id, imported_pool_id)
 
+    def test_import_json_with_matching_pool_ids(self):
+        pool = self.create_pool(fixture=2)
+        self.create_tsigkey(scope='POOL', resource_id=pool.id)
+        self.policy({'zone_create_forced_pool': '@'})
+
+        body = {
+            'zonefile': self.get_zonefile_fixture(),
+            'attributes': {'pool_id': pool.id},
+        }
+        response = self.client.post_json(
+            '/zones/tasks/imports', body,
+            headers={
+                'X-Test-Role': 'member',
+                'X-Designate-Pool-ID': pool.id,
+            },
+        )
+
+        import_id = response.json_body['id']
+        self.wait_for_import(import_id)
+        response = self.client.get(
+            '/zones/tasks/imports/%s' % import_id,
+            headers={'X-Test-Role': 'member'},
+        )
+        self.assertEqual('COMPLETE', response.json_body['status'])
+        zone = self.central_service.get_zone(
+            self.admin_context, response.json_body['zone_id'])
+        self.assertEqual(pool.id, zone.pool_id)
+
+    def test_import_json_with_conflicting_pool_ids(self):
+        # Different pool IDs in the header and body must be rejected.
+        pool = self.create_pool(fixture=2)
+        pool2 = self.create_pool(fixture=1)
+        body = {
+            'zonefile': self.get_zonefile_fixture(),
+            'attributes': {
+                'pool_id': pool.id,
+            },
+        }
+        self._assert_exception(
+            'bad_request', 400, self.client.post_json,
+            '/zones/tasks/imports',
+            body,
+            headers={
+                'X-Test-Role': 'member',
+                'X-Designate-Pool-ID': pool2.id,
+            },
+        )
+
     def test_import_unsupported_content_type(self):
         self._assert_exception(
             'unsupported_content_type', 415, self.client.post,
