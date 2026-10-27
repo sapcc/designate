@@ -13,7 +13,7 @@
 """shared zones dalmatian merge
 
 Revision ID: 018194635d9e
-Revises: 9099de8ae11c
+Revises: f49c4409c8ba
 Create Date: 2025-01-06 18:20:01.097227
 
 """
@@ -23,14 +23,28 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '018194635d9e'
-down_revision = '9099de8ae11c'
+# CCloud: moved to end of 2026.2 chain (was: 9099de8ae11c) to avoid
+# multiple heads. Upstream extended the chain after 9099de8ae11c with
+# f828412479ee -> d2a4aea32428 -> b57384b28335 -> f49c4409c8ba.
+down_revision = 'f49c4409c8ba'
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    # CCloud only, Shared Zones were used since years, therefore
-    # we need to make old implementation compatible with Dalmatian release
+    # CCloud only: Shared Zones were used since before the Dalmatian upstream
+    # release. Legacy instances have tenant_id/target_tenant_id column names;
+    # upstream Dalmatian uses project_id/target_project_id.
+    # Skip the rename if the table already uses the upstream column names
+    # (i.e. fresh installs that ran b20189fd288e without the legacy guard).
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    cols = [c['name'] for c in inspector.get_columns('shared_zones')]
+
+    if 'tenant_id' not in cols:
+        # Already project_id style — nothing to do.
+        return
+
     #op.drop_constraint('unique_shared_zone', 'shared_zones')
 
     with op.batch_alter_table('shared_zones') as batch_op:
