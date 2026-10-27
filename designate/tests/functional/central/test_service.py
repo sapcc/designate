@@ -804,7 +804,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
                                 self.central_service.create_zone,
                                 context, objects.Zone.from_dict(zone_values))
 
-        self.assertEqual(exceptions.Forbidden, exc.exc_info[0])
+        self.assertEqual(exceptions.IllegalParentZone, exc.exc_info[0])
 
     def test_create_zone_duplicate_different_pools_different_tenant_fails(
             self):
