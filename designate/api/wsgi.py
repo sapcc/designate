@@ -29,7 +29,7 @@ messaging.set_transport_defaults('designate')
 
 CONF = designate.conf.CONF
 
-CONFIG_FILES = ['api-paste.ini', 'designate.conf']
+CONFIG_FILES = ['api-paste.ini', 'designate.conf', 'secrets.conf']
 
 
 def _get_config_files(env=None):
