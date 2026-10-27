@@ -131,7 +131,7 @@ rules = [
     ),
     policy.DocumentedRuleDefault(
         name="create_super_zone",
-        check_str=base.SYSTEM_ADMIN_OR_PROJECT_MEMBER,
+        check_str=base.ADMIN_OR_PROJECT_MEMBER,
         scope_types=[constants.PROJECT],
         description="Create Super Zone",
         operations=[
