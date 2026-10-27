@@ -793,7 +793,8 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # Create sub zone
         self.create_zone(**subzone_values)
 
-        context = self.get_admin_context()
+        # Admins can create superzones, try as regular user
+        context = self.get_context()
 
         # Explicitly use a different tenant_id
         context.project_id = '2'
