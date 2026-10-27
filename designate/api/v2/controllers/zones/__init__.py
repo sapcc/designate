@@ -171,10 +171,14 @@ class ZonesController(rest.RestController):
             # Only increment the serial if fields that are propagated
             # to the nameservers have changed (e.g. email, ttl).
             # Metadata-only fields like description should not trigger
-            # a serial increment.
+            # a serial increment. Explicit serial updates should keep
+            # the requested serial value instead of auto-incrementing it.
             changed = zone.obj_what_changed()
-            dns_fields = changed - {'description'}
-            increment_serial = zone.type == 'PRIMARY' and bool(dns_fields)
+            if 'serial' in changed:
+                increment_serial = False
+            else:
+                dns_fields = changed - {'description'}
+                increment_serial = zone.type == 'PRIMARY' and bool(dns_fields)
             zone = self.central_api.update_zone(
                 context, zone, increment_serial=increment_serial)
 
