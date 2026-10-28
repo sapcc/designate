@@ -105,3 +105,8 @@ patches:
   title: CVE-2026-71193/71194 (cross-tenant/-pool ownership bypass)
   depends_on: [PATCH-023]
   status: pending
+- id: PATCH-026
+  title: Introduce patches.yaml
+  depends_on: []
+  status: integrated
+  commits: ["7dbdd68a"]        
