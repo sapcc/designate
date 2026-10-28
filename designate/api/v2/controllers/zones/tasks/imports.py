@@ -24,6 +24,9 @@ from designate import objects
 from designate.objects.adapters import DesignateAdapter
 from designate import utils
 
+from oslo_utils import strutils
+
+
 LOG = logging.getLogger(__name__)
 
 
@@ -97,9 +100,25 @@ class ZoneImportController(rest.RestController):
                 'Content-type must be text/dns or application/json'
             )
 
+        # Use given 'pool_id' if it was specified in the headers
+        # convert it to a zone attribute (upstream zone_attributes style).
+        # Header takes lower priority than an explicit attribute in the JSON body.
+        # Added for SAP legacy reasons, the header could be removed eventually.
+        pool_id = request.headers.get('X-Designate-Pool-ID')
+
+        if pool_id:
+            if zone_attributes is None:
+                zone_attributes = objects.ZoneAttributeList()
+            if not any(a.key == 'pool_id' for a in zone_attributes):
+                zone_attributes.append(
+                    objects.ZoneAttribute(key='pool_id', value=pool_id)
+                )
+        force_import = strutils.bool_from_string(
+            request.headers.get('X-Designate-Force-Import')
+        )
         # Create the zone_import
         zone_import = self.central_api.create_zone_import(
-            context, body, zone_attributes=zone_attributes)
+            context, body, zone_attributes=zone_attributes, force=force_import)
         response.status_int = 202
 
         LOG.info("Created %(zone_import)s", {'zone_import': zone_import})

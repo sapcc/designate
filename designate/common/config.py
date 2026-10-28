@@ -25,7 +25,9 @@ def set_defaults():
                        'X-Auth-All-Projects',
                        'X-Designate-Edit-Managed-Records',
                        'X-Designate-Hard-Delete',
-                       'OpenStack-DNS-Hide-Counts'],
+                       'OpenStack-DNS-Hide-Counts',
+                       'X-Designate-Force-Import'
+                       ],
         expose_headers=['X-OpenStack-Request-ID',
                         'Host'],
         allow_methods=['GET',
