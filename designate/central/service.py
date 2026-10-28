@@ -2989,13 +2989,13 @@ class Service(service.RPCService):
                           existing.id, existing_zone.id)
                 self.delete_recordset(context, existing_zone.id, existing.id)
             else:
-                new = new_rrsets[key]
-                new.id = existing.id
-                new.zone_id = existing_zone.id
-                new.tenant_id = existing_zone.tenant_id
+                # Mutate the existing recordset; a freshly parsed one has
+                # no change-tracking baseline for update_recordset.
+                existing.obj_reset_changes()
+                existing.records = new_rrsets[key].records
                 LOG.debug('Force import: updating recordset %s for zone %s',
                           key, existing_zone.id)
-                self.update_recordset(context, new)
+                self.update_recordset(context, existing)
 
         # Iterate new_rrsets separately so we never mutate a dict mid-loop.
         for key, new in new_rrsets.items():

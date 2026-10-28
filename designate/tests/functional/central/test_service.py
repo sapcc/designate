@@ -4192,6 +4192,98 @@ class CentralServiceTest(designate.tests.functional.TestCase):
                          zone_import.message)
         self.assertEqual('ERROR', zone_import.status)
 
+    def test_force_import_zone_creates_zone_when_not_existing(self):
+        # force=True on a zone that does not exist yet should behave
+        # identically to a normal import — create_zone is called once.
+        context = self.get_context(project_id=uuidutils.generate_uuid(),
+                                   roles=['member', 'reader'])
+        request_body = self.get_zonefile_fixture()
+
+        zone_import = self.central_service.create_zone_import(
+            context, request_body, force=True)
+
+        self.assertIsNotNone(zone_import.id)
+        self.assertEqual('PENDING', zone_import.status)
+
+        zone_import = self.wait_for_import(zone_import.id)
+
+        self.assertEqual('COMPLETE', zone_import.status)
+        self.assertIsNotNone(zone_import.zone_id)
+        self.assertIn('imported', zone_import.message)
+
+    def test_force_import_zone_updates_existing_zone(self):
+        # force=True on an existing zone must synchronise recordsets
+        # without raising DuplicateZone.
+        context = self.get_context(project_id=uuidutils.generate_uuid(),
+                                   roles=['member', 'reader'])
+        request_body = self.get_zonefile_fixture()
+
+        # First import — creates the zone
+        zone_import = self.central_service.create_zone_import(
+            context, request_body)
+        self.wait_for_import(zone_import.id)
+
+        # Second import with force=True — must succeed instead of DuplicateZone
+        zone_import2 = self.central_service.create_zone_import(
+            context, request_body, force=True)
+        zone_import2 = self.wait_for_import(zone_import2.id)
+
+        self.assertEqual('COMPLETE', zone_import2.status)
+        self.assertEqual(zone_import.zone_id, zone_import2.zone_id)
+        self.assertIn('imported', zone_import2.message)
+
+    def test_force_import_zone_without_flag_returns_duplicate_error(self):
+        # Without force=True a second import of the same zone must still
+        # result in an ERROR with the DuplicateZone message.
+        context = self.get_context(project_id=uuidutils.generate_uuid(),
+                                   roles=['member', 'reader'])
+        request_body = self.get_zonefile_fixture()
+
+        zone_import = self.central_service.create_zone_import(
+            context, request_body)
+        self.wait_for_import(zone_import.id)
+
+        zone_import2 = self.central_service.create_zone_import(
+            context, request_body)
+        zone_import2 = self.wait_for_import(zone_import2.id, error_is_ok=True)
+
+        self.assertEqual('ERROR', zone_import2.status)
+        self.assertEqual('Duplicate zone.', zone_import2.message)
+
+    def test_force_import_zone_recordset_sync(self):
+        # Verify that force-import removes rrsets that are no longer in
+        # the new zonefile.
+        context = self.get_context(project_id=uuidutils.generate_uuid(),
+                                   roles=['member', 'reader'])
+
+        # First import: normal zone from fixture.
+        zone_import = self.central_service.create_zone_import(
+            context, self.get_zonefile_fixture())
+        self.wait_for_import(zone_import.id)
+
+        # Add an extra recordset that is NOT in the fixture.
+        extra_rrset = objects.RecordSet(
+            name='stale.example.com.',
+            type='A',
+            records=objects.RecordList(objects=[
+                objects.Record(data='192.0.2.99'),
+            ]),
+        )
+        extra_rrset = self.central_service.create_recordset(
+            context, zone_import.zone_id, extra_rrset)
+
+        # Force-reimport the same fixture.
+        zone_import2 = self.central_service.create_zone_import(
+            context, self.get_zonefile_fixture(), force=True)
+        self.wait_for_import(zone_import2.id)
+
+        # The stale rrset must be gone.
+        with testtools.ExpectedException(exceptions.RecordSetNotFound):
+            self.central_service.storage.find_recordset(
+                context, criterion={'id': extra_rrset.id})
+
+
+
     def test_find_zone_imports(self):
         context = self.get_context(project_id=uuidutils.generate_uuid(),
                                    roles=['member', 'reader'])
