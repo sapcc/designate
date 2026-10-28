@@ -1,0 +1,107 @@
+schema_version: 1
+release: stable/2026.2-m3
+patches:
+- id: PATCH-000
+  title: GitHub-Actions
+  depends_on: []
+  status: pending
+- id: PATCH-001
+  title: CI / Concourse Setup
+  depends_on: []
+  status: pending
+- id: PATCH-002
+  title: Custom Requirements & Proprietary Forks
+  depends_on: []
+  status: pending
+- id: PATCH-003
+  title: Zone Import into Non-Default Pool
+  depends_on: []
+  status: pending
+- id: PATCH-004
+  title: SOA Fields Editable via API (refresh/retry/expire/minimum/ttl)
+  depends_on: []
+  status: pending
+- id: PATCH-005
+  title: Zone Serial Settable via API
+  depends_on: [PATCH-004]
+  status: pending
+- id: PATCH-006
+  title: Sub-/Super-Zone Policy Checks
+  depends_on: []
+  status: pending
+- id: PATCH-007
+  title: Attribute Filter Considers pool_id
+  depends_on: []
+  status: pending
+- id: PATCH-008
+  title: F5 Express DNS Backend Driver
+  depends_on: []
+  status: pending
+- id: PATCH-009
+  title: Elevated Context on Zone Update
+  depends_on: []
+  status: pending
+- id: PATCH-010
+  title: TXT Record Handling (Revert Split, 65k Limit, Quote Validation)
+  depends_on: []
+  status: pending
+- id: PATCH-011
+  title: Stop Service Status & Cleanup
+  depends_on: [PATCH-022]
+  status: pending
+- id: PATCH-012
+  title: WSGI Loads secrets.conf
+  depends_on: []
+  status: pending
+- id: PATCH-013
+  title: Non-Unix Serial Formats (RFC1982)
+  depends_on: [PATCH-005]
+  status: pending
+- id: PATCH-014
+  title: Validate API Filter as str
+  depends_on: []
+  status: pending
+- id: PATCH-015
+  title: Better Stale Zone Detection (updated_at, max_prop_time)
+  depends_on: [PATCH-013]
+  status: pending
+- id: PATCH-016
+  title: Force Option for Zone Import
+  depends_on: [PATCH-003, PATCH-018]
+  status: pending
+- id: PATCH-017
+  title: Granular Recordset Policies (create/update/delete)
+  depends_on: [PATCH-016]
+  status: pending
+- id: PATCH-018
+  title: Zone Sharing (Dalmatian Merge)
+  depends_on: []
+  status: pending
+- id: PATCH-019
+  title: Remove RE_FIP Backslash (raw string)
+  depends_on: []
+  status: pending
+- id: PATCH-020
+  title: Zone Creation in Foreign Tenants via Policy
+  depends_on: [PATCH-006]
+  status: pending
+- id: PATCH-021
+  title: Catalog Zones for ccloud
+  depends_on: []
+  status: pending
+- id: PATCH-022
+  title: HTTPS & SVCB Record Types (RFC9460)
+  depends_on: []
+  status: pending
+- id: PATCH-023
+  title: Pools RBAC (SOV/IAAS)
+  depends_on: [PATCH-006, PATCH-007]
+  status: pending
+- id: PATCH-024
+  title: Zone Move Between Pools
+  depends_on: [PATCH-023]
+  status: pending
+- id: PATCH-025
+  title: CVE-2026-71193/71194 (cross-tenant/-pool ownership bypass)
+  depends_on: [PATCH-023]
+  status: pending
