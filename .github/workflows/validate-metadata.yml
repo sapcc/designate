@@ -1,0 +1,51 @@
+name: Validate PR Metadata
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: code
+
+      - uses: actions/checkout@v4
+        with:
+          ref: patches
+          path: patches-data
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install ruamel.yaml
+        run: pip install ruamel.yaml
+
+      - name: Validate patch metadata
+        working-directory: code
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          VERSION=$(echo "${{ github.base_ref }}" | sed 's|stable/\([0-9.]*\).*|\1|')
+          PATCHES_PATH="../patches-data/${VERSION}/patches.yaml"
+          python3 .github/scripts/patch_pr.py validate \
+            "${PATCHES_PATH}" \
+            "${{ github.base_ref }}"
+
+      - name: Check fork consistency
+        working-directory: code
+        run: |
+          VERSION=$(echo "${{ github.base_ref }}" | sed 's|stable/\([0-9.]*\).*|\1|')
+          UPSTREAM_BASE=$(echo "${{ github.base_ref }}" | sed 's|-m3||')
+          PATCHES_PATH="../patches-data/${VERSION}/patches.yaml"
+          git fetch origin "${UPSTREAM_BASE}"
+          python3 .github/scripts/check_consistency.py \
+            "${PATCHES_PATH}" \
+            "${UPSTREAM_BASE}" \
+            "${{ github.base_ref }}"
