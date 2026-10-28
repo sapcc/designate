@@ -22,15 +22,16 @@ from alembic import script as alembic_script
 from oslo_db.sqlalchemy import enginefacade
 from oslo_db.sqlalchemy import test_fixtures
 from oslo_log import log as logging
+import sqlalchemy as sa
 
-from designate.storage import sqlalchemy
+from designate.storage import sqlalchemy as designate_sqlalchemy
 from designate.storage.sqlalchemy.alembic import legacy_utils
 import designate.tests.functional
 
 
 LOG = logging.getLogger(__name__)
 ALEMBIC_PATH = os.path.join(
-    os.path.dirname(sqlalchemy.__file__), 'alembic.ini'
+    os.path.dirname(designate_sqlalchemy.__file__), 'alembic.ini'
 )
 
 
@@ -131,7 +132,65 @@ class DesignateMigrationsWalk(
         pass
 
     def _check_f49c4409c8ba(self, connection):
-        pass
+        pass 
+        
+    def _check_018194635d9e(self, connection):
+        # Fresh-install path: b20189fd288e already created the table with
+        # project_id/target_project_id. The migration must be a no-op and
+        # the upstream column names must still be present.
+        inspector = sa.inspect(connection)
+        cols = [c['name'] for c in inspector.get_columns('shared_zones')]
+        self.assertIn('project_id', cols)
+        self.assertIn('target_project_id', cols)
+        self.assertNotIn('tenant_id', cols)
+        self.assertNotIn('target_tenant_id', cols)
+
+    def test_shared_zones_dalmatian_merge_legacy_path(self):
+        # Legacy path: simulate a CCloud instance where shared_zones was
+        # created with legacy tenant_id/target_tenant_id column names
+        # (i.e. before the upstream Dalmatian shared_zones migration).
+        # The migration must rename them to project_id/target_project_id.
+        with self.engine.begin() as connection:
+            self.config.attributes['connection'] = connection
+
+            # Migrate up to just before the shared_zones migration so we
+            # have a base schema, then manually create the legacy table.
+            alembic_api.upgrade(self.config, 'e5e2199ed76e')
+
+            op = sa.text(
+                'CREATE TABLE shared_zones_legacy_test ('
+                '  id VARCHAR(36) NOT NULL PRIMARY KEY,'
+                '  created_at DATETIME,'
+                '  updated_at DATETIME,'
+                '  zone_id VARCHAR(36) NOT NULL,'
+                '  tenant_id VARCHAR(36) NOT NULL,'
+                '  target_tenant_id VARCHAR(36) NOT NULL'
+                ')'
+            )
+            connection.execute(op)
+
+            # Rename the test table to shared_zones to simulate legacy state.
+            # b20189fd288e is guarded by legacy_utils; we skip it and stamp
+            # alembic as if it already ran, then run 018194635d9e directly.
+            connection.execute(sa.text('DROP TABLE IF EXISTS shared_zones'))
+            connection.execute(sa.text(
+                'ALTER TABLE shared_zones_legacy_test '
+                'RENAME TO shared_zones'
+            ))
+
+            # Stamp past b20189fd288e and the chain up to f49c4409c8ba so
+            # Alembic thinks those ran, then apply only 018194635d9e.
+            alembic_api.stamp(self.config, 'f49c4409c8ba')
+
+            alembic_api.upgrade(self.config, '018194635d9e')
+
+            inspector = sa.inspect(connection)
+            cols = [c['name'] for c in
+                    inspector.get_columns('shared_zones')]
+            self.assertIn('project_id', cols)
+            self.assertIn('target_project_id', cols)
+            self.assertNotIn('tenant_id', cols)
+            self.assertNotIn('target_tenant_id', cols)
 
     def test_single_base_revision(self):
         script = alembic_script.ScriptDirectory.from_config(self.config)
@@ -180,6 +239,10 @@ class DesignateMigrationsWalk(
                                    'is_migration_needed',
                                    return_value=False):
                 for revision in revisions:
+                    # CCloud only, Dalmatian upgrade:
+                    if revision == '018194635d9e':
+                        # skip because it is temporary
+                        continue
                     LOG.info('Testing revision %s', revision)
                     self._migrate_up(connection, revision)
 
