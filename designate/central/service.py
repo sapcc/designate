@@ -341,11 +341,11 @@ class Service(service.RPCService):
         across multiple pools (e.g. split-horizon deployments); only
         cross-tenant collisions are rejected here.
         """
-        context = context.elevated(all_tenants=True)
+        elevated = context.elevated(all_tenants=True)
         labels = zone.name.split('.')
 
         # Exact-name duplicate owned by another tenant, in any pool.
-        for existing in self.storage.find_zones(context, {'name': zone.name}):
+        for existing in self.storage.find_zones(elevated, {'name': zone.name}):
             if existing.tenant_id != zone.tenant_id:
                 raise exceptions.DuplicateZone(
                     'Zone already exists, owned by a different tenant')
@@ -355,21 +355,25 @@ class Service(service.RPCService):
         # match, same as _is_subzone.
         for i in range(1, len(labels)):
             name = '.'.join(labels[i:])
-            ancestors = self.storage.find_zones(context, {'name': name})
+            ancestors = self.storage.find_zones(elevated, {'name': name})
             if not ancestors:
                 continue
             for ancestor in ancestors:
                 if ancestor.tenant_id != zone.tenant_id:
-                    raise exceptions.IllegalChildZone(
-                        'Unable to create subzone in another tenants '
-                        'zone')
+                    # Honour the same policy override the pool-scoped
+                    # subzone path uses before rejecting.
+                    if not policy.check('create_sub_zone_other_project',
+                                        context, do_raise=False):
+                        raise exceptions.IllegalChildZone(
+                            'Unable to create subzone in another tenants '
+                            'zone')
             break
 
         # This zone would be a superzone of a zone owned by another
         # tenant, in any pool.
         search_term = "%%.%(name)s" % {"name": zone.name}
         for subzone in self.storage.find_zones(
-                context, {'name': search_term}):
+                elevated, {'name': search_term}):
             if subzone.tenant_id != zone.tenant_id:
                 raise exceptions.IllegalParentZone(
                     'Unable to create zone because another tenant owns '
@@ -858,8 +862,6 @@ class Service(service.RPCService):
             'zone_name': zone.name
         }
 
-        policy.check('create_zone', context, target)
-
         self._enforce_catalog_zone_policy(context, zone)
 
         self._is_valid_project_id(zone.tenant_id)
@@ -889,10 +891,16 @@ class Service(service.RPCService):
             if parent_zone.tenant_id == zone.tenant_id:
                 # Record the Parent Zone ID
                 zone.parent_zone_id = parent_zone.id
-            else:
+                # Do subzone policy check instead of regular create_zone
+                policy.check('create_sub_zone', context, target)
+            elif not policy.check('create_sub_zone_other_project', context,
+                                  do_raise=False):
                 raise exceptions.IllegalChildZone('Unable to create '
                                                   'subzone in another '
                                                   'tenants zone')
+        else:
+            # If not subzone, regular policy check applies
+            policy.check('create_zone', context, target)
 
         # Handle super-zones appropriately
         subzones = self._is_superzone(context, zone.name, zone.pool_id)
@@ -902,7 +910,10 @@ class Service(service.RPCService):
             LOG.debug("Zone '%s' is a superzone.", zone.name)
             for subzone in subzones:
                 if subzone.tenant_id != zone.tenant_id:
-                    raise exceptions.IllegalParentZone(msg)
+                    # raise unless explicitly allowed by the policy:
+                    if not policy.check('create_super_zone', context,
+                                        do_raise=False):
+                        raise exceptions.IllegalParentZone(msg)
 
         # If this succeeds, subzone parent IDs will be updated
         # after zone is created
@@ -1153,7 +1164,7 @@ class Service(service.RPCService):
         # Prevent deletion of a zone which has child zones
         criterion = {'parent_zone_id': zone_id}
 
-        # Look for child zones across all tenants with elevated context
+        # Look through all tenants for child zones
         if self.storage.count_zones(context.elevated(all_tenants=True),
                                     criterion) > 0:
             raise exceptions.ZoneHasSubZone('Please delete any subzones '
@@ -2658,7 +2669,15 @@ class Service(service.RPCService):
         target = {constants.RBAC_PROJECT_ID: zone.tenant_id,
                   'tenant_id': zone.tenant_id}
 
-        policy.check('create_zone_transfer_request', context, target)
+        # Handle sub-zones appropriately
+        parent_zone = self._is_subzone(context, zone.name, zone.pool_id)
+
+        if parent_zone:
+            # Do subzone policy check instead of regular zone_transfer
+            policy.check('create_sub_zone_transfer_request', context, target)
+        else:
+            # If not subzone, regular policy check applies
+            policy.check('create_zone_transfer_request', context, target)
 
         zone_transfer_request.key = self._transfer_key_generator()
 
