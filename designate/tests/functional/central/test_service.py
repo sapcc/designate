@@ -882,7 +882,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # Create a secondary pool
         second_pool = self.create_pool()
 
-        context = self.get_admin_context()
+        context = self.get_context()
         context.project_id = '2'
 
         fixture['context'] = context

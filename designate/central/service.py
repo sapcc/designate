@@ -341,11 +341,11 @@ class Service(service.RPCService):
         across multiple pools (e.g. split-horizon deployments); only
         cross-tenant collisions are rejected here.
         """
-        context = context.elevated(all_tenants=True)
+        elevated = context.elevated(all_tenants=True)
         labels = zone.name.split('.')
 
         # Exact-name duplicate owned by another tenant, in any pool.
-        for existing in self.storage.find_zones(context, {'name': zone.name}):
+        for existing in self.storage.find_zones(elevated, {'name': zone.name}):
             if existing.tenant_id != zone.tenant_id:
                 raise exceptions.DuplicateZone(
                     'Zone already exists, owned by a different tenant')
@@ -355,21 +355,25 @@ class Service(service.RPCService):
         # match, same as _is_subzone.
         for i in range(1, len(labels)):
             name = '.'.join(labels[i:])
-            ancestors = self.storage.find_zones(context, {'name': name})
+            ancestors = self.storage.find_zones(elevated, {'name': name})
             if not ancestors:
                 continue
             for ancestor in ancestors:
                 if ancestor.tenant_id != zone.tenant_id:
-                    raise exceptions.IllegalChildZone(
-                        'Unable to create subzone in another tenants '
-                        'zone')
+                    # Honour the same policy override the pool-scoped
+                    # subzone path uses before rejecting.
+                    if not policy.check('create_sub_zone_other_project',
+                                        context, do_raise=False):
+                        raise exceptions.IllegalChildZone(
+                            'Unable to create subzone in another tenants '
+                            'zone')
             break
 
         # This zone would be a superzone of a zone owned by another
         # tenant, in any pool.
         search_term = "%%.%(name)s" % {"name": zone.name}
         for subzone in self.storage.find_zones(
-                context, {'name': search_term}):
+                elevated, {'name': search_term}):
             if subzone.tenant_id != zone.tenant_id:
                 raise exceptions.IllegalParentZone(
                     'Unable to create zone because another tenant owns '
