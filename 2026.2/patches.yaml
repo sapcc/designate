@@ -4,7 +4,9 @@ patches:
 - id: PATCH-000
   title: GitHub-Actions
   depends_on: []
-  status: pending
+  status: integrated
+  commits: ["820c801f"]
+  pr: 70
 - id: PATCH-001
   title: CI / Concourse Setup
   depends_on: []
@@ -109,4 +111,4 @@ patches:
   title: Introduce patches.yaml
   depends_on: []
   status: integrated
-  commits: ["7dbdd68a"]        
+  commits: ["7dbdd68a"]
