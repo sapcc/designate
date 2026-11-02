@@ -752,6 +752,9 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         self.assertEqual(parent_zone['id'], subzone['parent_zone_id'])
 
     def test_create_subzone_failure(self):
+        # Set the policy to reject subzone creation in other tenants
+        self.policy({'create_sub_zone_other_project': '!'})
+
         context = self.get_admin_context()
 
         # Explicitly set a tenant_id
@@ -776,6 +779,36 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
         self.assertEqual(exceptions.IllegalChildZone, exc.exc_info[0])
 
+    def test_create_subzone_in_other_tenants_via_policy(self):
+        # Set the policy to allow subzone creation in other tenants
+        self.policy({'create_sub_zone_other_project': '@'})
+
+        context = self.get_admin_context()
+
+        # Explicitly set a tenant_id
+        context.project_id = '1'
+
+        # Create the Parent Zone using fixture 0
+        parent_zone = self.create_zone(fixture=0, context=context)
+
+        context = self.get_admin_context()
+
+        # Explicitly use a different tenant_id
+        context.project_id = '2'
+
+        # Prepare values for the subzone using fixture 1 as a base
+        values = self.get_zone_fixture(fixture=1)
+        values['name'] = 'www.%s' % parent_zone['name']
+
+        # Attempt to create the subzone
+        zone = self.central_service.create_zone(
+            context, objects.Zone.from_dict(values))
+
+        # Ensure all values have been set correctly
+        self.assertIsNotNone(zone['id'])
+        self.assertEqual(zone['name'], values['name'])
+        self.assertEqual(zone['email'], values['email'])
+
     def test_create_superzone_failure(self):
         context = self.get_admin_context()
 
@@ -793,7 +826,8 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # Create sub zone
         self.create_zone(**subzone_values)
 
-        context = self.get_admin_context()
+        # Admins can create superzones, try as regular user
+        context = self.get_context()
 
         # Explicitly use a different tenant_id
         context.project_id = '2'
@@ -848,7 +882,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # Create a secondary pool
         second_pool = self.create_pool()
 
-        context = self.get_admin_context()
+        context = self.get_context()
         context.project_id = '2'
 
         fixture['context'] = context

@@ -546,8 +546,11 @@
 
 # Create Zone
 # POST  /v2/zones
-# Intended scope(s): project
+# Intended scope(s): system, project
 #"create_zone": "(role:admin) or (role:member and project_id:%(project_id)s)"
+#"create_sub_zone": "(role:admin) or (role:member and project_id:%(project_id)s)"
+#"create_super_zone": "(role:admin) or (role:member and project_id:%(project_id)s)"
+#"create_sub_zone_other_project": "role:admin"
 
 # DEPRECATED
 # "create_zone":"rule:admin_or_owner" has been deprecated since W in
