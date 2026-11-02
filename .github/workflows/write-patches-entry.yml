@@ -1,0 +1,66 @@
+name: Write patches.yaml entry
+
+on:
+  pull_request:
+    types: [closed]
+
+concurrency:
+  group: patches-yaml-write
+  cancel-in-progress: false
+
+jobs:
+  write:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          path: code
+
+      - uses: actions/checkout@v4
+        with:
+          ref: patches
+          path: patches-data
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install ruamel.yaml
+        run: pip install ruamel.yaml
+
+      - name: Write patches.yaml entry
+        id: apply
+        working-directory: code
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          VERSION=$(echo "${{ github.event.pull_request.base.ref }}" | sed 's|stable/\([0-9.]*\).*|\1|')
+          PATCHES_PATH="../patches-data/${VERSION}/patches.yaml"
+          mkdir -p "../patches-data/${VERSION}"
+          python3 .github/scripts/patch_pr.py apply \
+            "${PATCHES_PATH}" \
+            "${{ github.event.pull_request.base.ref }}" \
+            "${{ github.event.pull_request.merge_commit_sha }}" \
+            "${{ github.event.pull_request.number }}" \
+            "${{ github.event.pull_request.title }}"
+
+      - name: Validate patches.yaml
+        working-directory: code
+        run: |
+          VERSION=$(echo "${{ github.event.pull_request.base.ref }}" | sed 's|stable/\([0-9.]*\).*|\1|')
+          python3 .github/scripts/validate_patches.py "../patches-data/${VERSION}/patches.yaml"
+
+      - name: Commit and push to patches branch
+        run: |
+          cd patches-data
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git diff --cached --quiet && echo "no changes to commit" && exit 0
+          git commit -m "Updated patches.yaml: ${{ steps.apply.outputs.patch_id }} ${{ steps.apply.outputs.patch_type }} (PR #${{ github.event.pull_request.number }})"
+          git push
