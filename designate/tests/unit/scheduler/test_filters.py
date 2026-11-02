@@ -277,6 +277,40 @@ class SchedulerAttributeFilterTest(SchedulerFilterTest):
 
         self.assertEqual('6c346011-e581-429b-a7a2-6cdf0aba91c3', pools[0].id)
 
+    def test_pool_id_attribute_selects_requested_pool(self):
+        zone = objects.Zone(
+            name='example.com.',
+            type='PRIMARY',
+            email='hostmaster@example.com',
+            attributes=objects.ZoneAttributeList.from_list(
+                [
+                    {
+                        'key': 'pool_id',
+                        'value': '6c346011-e581-429b-a7a2-6cdf0aba91c3'
+                    }
+                ]
+            )
+        )
+        pools = objects.PoolList.from_list(
+            [
+                {'id': '5fabcd37-262c-4cf3-8625-7f419434b6df'},
+                {'id': '6c346011-e581-429b-a7a2-6cdf0aba91c3'},
+            ]
+        )
+
+        self.useFixture(fixtures.MockPatchObject(
+            policy, 'check',
+            return_value=None
+        ))
+
+        pools = self.test_filter.filter(self.context, pools, zone)
+
+        self.assertEqual(1, len(pools))
+        self.assertEqual('6c346011-e581-429b-a7a2-6cdf0aba91c3', pools[0].id)
+        policy.check.assert_called_once_with(
+            'zone_create_forced_pool', self.context, pools[0]
+        )
+
     def test_multiple_pools_all_match(self):
         pools = objects.PoolList.from_list(
             [
