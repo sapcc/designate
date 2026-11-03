@@ -61,7 +61,7 @@ class RestController(pecan.rest.RestController):
                 duplicate.append(k)
                 continue
 
-            if k in accepted_filters:
+            if k in accepted_filters and isinstance(params.get(k), str):
                 criterion[k] = params[k].replace("*", "%")
             else:
                 invalid.append(k)
