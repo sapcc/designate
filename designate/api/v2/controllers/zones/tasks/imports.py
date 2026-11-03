@@ -119,7 +119,7 @@ class ZoneImportController(rest.RestController):
             if existing_pool_id is None:
                 zone_attributes.append(
                     objects.ZoneAttribute(key='pool_id', value=pool_id))
-                
+
         force_import = strutils.bool_from_string(
             request.headers.get('X-Designate-Force-Import')
         )
