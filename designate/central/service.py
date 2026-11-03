@@ -2962,9 +2962,6 @@ class Service(service.RPCService):
             existing_zone = self.storage.find_zone(
                 context, {'name': zone.name})
         except exceptions.ZoneNotFound:
-            # User also needs create_zone_import for this one????
-            if not policy.check("create_zone_import", context, to_raise=False):
-                raise exceptions.Forbidden
             zone = self.create_zone(context, zone)
             return zone 
 
