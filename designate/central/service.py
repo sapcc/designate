@@ -2844,10 +2844,9 @@ class Service(service.RPCService):
         target = {constants.RBAC_PROJECT_ID: context.project_id,
                   'tenant_id': context.project_id}
 
+        policy.check('create_zone_import', context, target)
         if force:
             policy.check('create_force_zone_import', context, target)
-        else:
-            policy.check('create_zone_import', context, target)
 
         self._is_valid_project_id(context.project_id)
 
@@ -2920,13 +2919,12 @@ class Service(service.RPCService):
         if zone_import.status != 'ERROR':
             try:
                 if force:
-                    zone_import = self._force_import_zone(
-                        context, zone_import, zone)
+                    zone = self._create_or_sync_zone(context, zone)
                 else:
                     zone = self.create_zone(context, zone)
-                    zone_import.status = 'COMPLETE'
-                    zone_import.zone_id = zone.id
-                    zone_import.message = f'{zone.name} imported'
+                zone_import.status = 'COMPLETE'
+                zone_import.zone_id = zone.id
+                zone_import.message = f'{zone.name} imported'
             except exceptions.DuplicateZone:
                 zone_import.status = 'ERROR'
                 zone_import.message = 'Duplicate zone.'
@@ -2950,7 +2948,7 @@ class Service(service.RPCService):
 
         self.update_zone_import(context.elevated(), zone_import)
 
-    def _force_import_zone(self, context, zone_import, zone):
+    def _create_or_sync_zone(self, context, zone):
         """Update an existing zone's recordsets from an imported zonefile.
 
         If the zone does not exist yet, create it normally.
@@ -2964,11 +2962,11 @@ class Service(service.RPCService):
             existing_zone = self.storage.find_zone(
                 context, {'name': zone.name})
         except exceptions.ZoneNotFound:
+            # User also needs create_zone_import for this one????
+            if not policy.check("create_zone_import", context, to_raise=False):
+                raise exceptions.Forbidden
             zone = self.create_zone(context, zone)
-            zone_import.status = 'COMPLETE'
-            zone_import.zone_id = zone.id
-            zone_import.message = f'{zone.name} imported'
-            return zone_import
+            return zone 
 
         # Build lookup dicts keyed by "<name>_<type>"
         criterion = {'zone_id': existing_zone.id}
@@ -2978,36 +2976,37 @@ class Service(service.RPCService):
             if not (r.type == 'SOA' or
                     (r.type == 'NS' and r.name == existing_zone.name))
         }
+        # SOA/apex-NS already stripped in _import_zone; zone.recordsets contains
+        # only importable records at this point.
         new_rrsets = {
             f'{r.name}_{r.type}': r
             for r in zone.recordsets
         }
 
-        for key, existing in existing_rrsets.items():
-            if key not in new_rrsets:
-                LOG.debug('Force import: deleting recordset %s for zone %s',
-                          existing.id, existing_zone.id)
-                self.delete_recordset(context, existing_zone.id, existing.id)
-            else:
-                # Mutate the existing recordset; a freshly parsed one has
-                # no change-tracking baseline for update_recordset.
-                existing.obj_reset_changes()
-                existing.records = new_rrsets[key].records
-                LOG.debug('Force import: updating recordset %s for zone %s',
-                          key, existing_zone.id)
-                self.update_recordset(context, existing)
-
-        # Iterate new_rrsets separately so we never mutate a dict mid-loop.
-        for key, new in new_rrsets.items():
-            if key not in existing_rrsets:
-                LOG.debug('Force import: creating recordset %s for zone %s',
-                          key, existing_zone.id)
-                self.create_recordset(context, existing_zone.id, new)
-
-        zone_import.status = 'COMPLETE'
-        zone_import.zone_id = existing_zone.id
-        zone_import.message = f'{existing_zone.name} imported'
-        return zone_import
+        # Sync records of zone
+        try:
+            for key, existing in existing_rrsets.items():
+                if key not in new_rrsets:
+                    LOG.debug('Force import: deleting recordset %s for zone %s',
+                              existing.id, existing_zone.id)
+                    self.delete_recordset(context, existing_zone.id, existing.id, increment_serial=False)
+                else:
+                    existing.obj_reset_changes()
+                    existing.records = new_rrsets[key].records
+                    LOG.debug('Force import: updating recordset %s for zone %s',
+                              key, existing_zone.id)
+                    self.update_recordset(context, existing, increment_serial=False)
+    
+            for key, new in new_rrsets.items():
+                if key not in existing_rrsets:
+                    LOG.debug('Force import: creating recordset %s for zone %s',
+                              key, existing_zone.id)
+                    self.create_recordset(context, existing_zone.id, new, increment_serial=False)
+        finally:
+            # Single serial increment + mdns notify for all recordsets;
+            # finally ensures no half-updated zone is left without a notify.
+            self._update_zone_in_storage(context, existing_zone, increment_serial=True);
+        return existing_zone
 
     @notification.notify_type('dns.zone_import.update')
     def update_zone_import(self, context, zone_import):
