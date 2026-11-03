@@ -837,7 +837,15 @@ class Service(service.RPCService):
     @transaction
     @lock.synchronized_zone()
     def increment_zone_serial(self, context, zone):
-        zone.serial = self.storage.increment_serial(context, zone.id)
+        created_ts = zone.created_at.timestamp()
+        now_ts = timeutils.utcnow_ts()
+        if created_ts < zone.serial < now_ts:
+            zone.serial = self.storage.increment_serial(
+                context, zone.id, int(now_ts))
+        else:
+            zone.serial = self.storage.increment_serial(
+                context, zone.id, zone.serial + 1
+            )
         self._update_soa(context, zone)
         return zone.serial
 
@@ -886,7 +894,16 @@ class Service(service.RPCService):
         parent_zone = self._is_subzone(
             context, zone.name, zone.pool_id)
         if parent_zone:
-            if parent_zone.tenant_id == zone.tenant_id:
+            parent_zone_shared = self.find_shared_zones(
+                context.elevated(all_tenants=True),
+                criterion={
+                    "zone_id": parent_zone.id,
+                    "target_project_id": zone.tenant_id,
+                },
+                limit=1
+            )
+
+            if parent_zone.tenant_id == zone.tenant_id or parent_zone_shared:
                 # Record the Parent Zone ID
                 zone.parent_zone_id = parent_zone.id
             else:
