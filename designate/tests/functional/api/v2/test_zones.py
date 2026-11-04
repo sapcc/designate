@@ -60,6 +60,21 @@ class ApiV2ZonesTest(v2.ApiV2TestCase):
         for k in fixture:
             self.assertEqual(fixture[k], response.json[k])
 
+    def test_create_zone_multiple_pools_found(self):
+        # A zone without attributes matches both pools and no filter picks
+        # one: the request is ambiguous, the configuration is not broken.
+        self.config(scheduler_filters=['attribute'], group='service:central')
+        self.create_pool(fixture=0)
+
+        fixture = self.get_zone_fixture(fixture=0)
+        response = self.client.post_json('/zones/', fixture,
+                                         headers={'X-Test-Role': 'member'},
+                                         status=400)
+
+        self.assertEqual(400, response.json['code'])
+        self.assertEqual('multiple_pools_found', response.json['type'])
+        self.assertIn('zone attributes', response.json['message'])
+
     def test_create_zone_no_type(self):
         # Create a zone
         fixture = self.get_zone_fixture(fixture=0)

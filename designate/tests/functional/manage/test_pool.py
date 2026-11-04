@@ -11,6 +11,7 @@
 # under the License.
 
 
+import copy
 import os
 from unittest import mock
 import yaml
@@ -19,6 +20,7 @@ from oslo_log import log as logging
 import oslo_messaging
 
 from designate.central import service
+import designate.conf
 from designate import exceptions
 from designate.manage import base
 from designate.manage import pool
@@ -26,6 +28,7 @@ from designate.tests import base_fixtures
 import designate.tests.functional
 from designate.tests import resources
 
+CONF = designate.conf.CONF
 LOG = logging.getLogger(__name__)
 
 
@@ -309,6 +312,57 @@ class ManagePoolTestCase(designate.tests.functional.TestCase):
         self.assertEqual('bind9', pools[0].targets[0].type)
 
     @mock.patch.object(pool.PoolCommands, '_load_config')
+    def test_update_pool_keeps_zone_masters(self, mock_load_config):
+        self.command._setup()
+        self.command._create_pool(get_pools()[0])
+
+        default_pool = self.central_service.find_pool(
+            self.admin_context, {'name': 'default'}
+        )
+        self.create_tsigkey(scope='POOL', resource_id=default_pool.id)
+
+        primary_zone = self.create_zone(fixture=1)
+        fixture = self.get_zone_fixture('SECONDARY', 0)
+        fixture['email'] = CONF['service:central'].managed_resource_email
+        fixture['masters'] = [{'host': '192.0.2.50', 'port': 53}]
+        secondary_zone = self.create_zone(**fixture)
+
+        pool_data = get_pools()[0]
+        pool_data['targets'][0]['masters'] = [
+            {'host': '192.0.2.10', 'port': 5354}
+        ]
+        mock_load_config.return_value = [pool_data]
+
+        with mock.patch(
+                'designate.worker.rpcapi.WorkerAPI.perform_zone_xfr'
+        ) as mock_perform_zone_xfr:
+            self.command.update('pools.yaml', delete=False, dry_run=False)
+
+        # The zones are updated, so that the backends use the new masters
+        # of the pool target.
+        zones = self.central_service.find_zones(self.admin_context)
+        self.assertEqual(2, len(zones))
+        for zone in zones:
+            self.assertEqual('UPDATE', zone.action)
+            self.assertEqual('PENDING', zone.status)
+
+        # The secondary zone keeps its primary server and is not transferred
+        # from the masters of the pool target.
+        secondary_zone = self.central_service.get_zone(
+            self.admin_context, secondary_zone.id
+        )
+        self.assertEqual(
+            [('192.0.2.50', 53)],
+            [(master.host, master.port) for master in secondary_zone.masters]
+        )
+        mock_perform_zone_xfr.assert_not_called()
+
+        # The primary zone still has no masters.
+        self.assertEqual(0, len(self.storage._find_zone_masters(
+            self.admin_context, {'zone_id': primary_zone.id}
+        )))
+
+    @mock.patch.object(pool.PoolCommands, '_load_config')
     def test_update_pool_unknown_backend(self, mock_load_config):
         mock_load_config.return_value = [{
             'name': 'default',
@@ -492,3 +546,80 @@ class ManagePoolTestCase(designate.tests.functional.TestCase):
             'default',
             self.command._get_pool({'id': new_pool.id}).name
         )
+
+    def _create_pool_with_zones(self):
+        self.command._setup()
+        self.command._create_pool(get_pools()[0])
+
+        default_pool = self.central_service.find_pool(
+            self.admin_context, {'name': 'default'}
+        )
+        self.create_tsigkey(scope='POOL', resource_id=default_pool.id)
+        self.create_zone(fixture=0)
+        self.create_zone(fixture=1)
+
+        return default_pool
+
+    def _update_and_count_zone_updates(self, pool_data):
+        with mock.patch.object(
+                pool.PoolCommands, '_load_config',
+                return_value=[pool_data]):
+            with mock.patch.object(
+                    self.central_service, 'update_zone',
+                    wraps=self.central_service.update_zone
+            ) as mock_update_zone:
+                self.command.update(
+                    'pools.yaml', delete=False, dry_run=False
+                )
+
+        return mock_update_zone.call_count
+
+    def test_update_pool_without_target_changes_does_not_update_zones(self):
+        default_pool = self._create_pool_with_zones()
+
+        pool_data = get_pools()[0]
+        pool_data['id'] = default_pool.id
+        pool_data['name'] = 'renamed'
+        pool_data['description'] = 'Renamed pool'
+        pool_data['attributes'] = {'type': 'external'}
+        pool_data['also_notifies'] = [{'host': '192.0.2.5', 'port': 53}]
+
+        self.assertEqual(0, self._update_and_count_zone_updates(pool_data))
+
+        for zone in self.central_service.find_zones(self.admin_context):
+            self.assertEqual('CREATE', zone.action)
+
+        updated_pool = self.central_service.get_pool(
+            self.admin_context, default_pool.id
+        )
+        self.assertEqual('renamed', updated_pool.name)
+        self.assertEqual('Renamed pool', updated_pool.description)
+        self.assertEqual('external', updated_pool.attributes[0].value)
+        self.assertEqual('192.0.2.5', updated_pool.also_notifies[0].host)
+
+    def test_update_pool_masters_updates_zones(self):
+        self._create_pool_with_zones()
+
+        pool_data = get_pools()[0]
+        pool_data['targets'][0]['masters'] = [
+            {'host': '192.0.2.10', 'port': 5354}
+        ]
+
+        self.assertEqual(2, self._update_and_count_zone_updates(pool_data))
+
+        for zone in self.central_service.find_zones(self.admin_context):
+            self.assertEqual('UPDATE', zone.action)
+            self.assertEqual('PENDING', zone.status)
+
+        # Nothing changed this time, so the zones are not updated again.
+        self.assertEqual(0, self._update_and_count_zone_updates(pool_data))
+
+    def test_update_pool_new_target_updates_zones(self):
+        self._create_pool_with_zones()
+
+        pool_data = get_pools()[0]
+        new_target = copy.deepcopy(pool_data['targets'][0])
+        new_target['options']['api_endpoint'] = 'http://192.0.2.5:8081'
+        pool_data['targets'].append(new_target)
+
+        self.assertEqual(2, self._update_and_count_zone_updates(pool_data))
