@@ -85,7 +85,7 @@ rules = [
     policy.RuleDefault(
         name="delete_service_status",
         check_str=base.ADMIN,
-        scope_types=[constants.PROJECT],
+        scope_types=['system'],
         deprecated_rule=deprecated_delete_service_status
     )
 ]

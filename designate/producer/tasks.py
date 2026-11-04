@@ -344,13 +344,22 @@ class WorkerPeriodicRecovery(PeriodicTask):
 class PeriodicCheckServiceStatusTask(PeriodicTask):
     __plugin_name__ = 'periodic_check_service_status'
 
+    def __init__(self):
+        super(PeriodicCheckServiceStatusTask, self).__init__()
+
     def _iter_service_statuses(self, ctxt, criterion=None):
         criterion = criterion or {}
         return self._iter(self.central_api.find_service_statuses,
                           ctxt, criterion)
 
     def __call__(self):
-        LOG.info("Checking for stale service statuses")
+        pstart, pend = self._my_range()
+        LOG.info(
+            "Performing check on services for %(start)s to %(end)s",
+            {
+                "start": pstart,
+                "end": pend
+            })
 
         ctxt = context.DesignateContext.get_admin_context()
         ctxt.all_tenants = True
@@ -361,9 +370,10 @@ class PeriodicCheckServiceStatusTask(PeriodicTask):
             if not service_status.heartbeated_at:
                 continue
             now = timeutils.utcnow()
-            seconds = timeutils.delta_seconds(
-                service_status.heartbeated_at, now)
-            if seconds > CONF[self.name].time_threshold:
+            heartbeated = service_status.heartbeated_at
+            heartbeated = heartbeated.replace(tzinfo=None)  # remove TZ
+            seconds = timeutils.delta_seconds(heartbeated, now)
+            if seconds > int(CONF[self.name].service_time_threshold):
                 LOG.debug("Service status %(id)s has %(seconds)d seconds "
                           "since last heartbeat, marking 'DOWN'",
                           {"id": service_status.id, "seconds": seconds})
@@ -374,45 +384,27 @@ class PeriodicCheckServiceStatusTask(PeriodicTask):
 class PeriodicCleanupStoppedServiceStatusTask(PeriodicTask):
     __plugin_name__ = 'periodic_cleanup_stopped_service_status'
 
+    def __init__(self):
+        super(PeriodicCleanupStoppedServiceStatusTask, self).__init__()
+
     def _iter_service_statuses(self, ctxt, criterion=None):
         criterion = criterion or {}
         return self._iter(self.central_api.find_service_statuses,
                           ctxt, criterion)
 
-    def _delete_stale_down_services(self, ctxt):
-        time_threshold = CONF[self.name].time_threshold
-        if time_threshold <= 0:
-            return
-
-        threshold = (timeutils.utcnow() -
-                     datetime.timedelta(seconds=time_threshold))
-        criterion = {"status": constants.SERVICE_DOWN}
-        try:
-            for service_status in self._iter_service_statuses(ctxt, criterion):
-                if not service_status.heartbeated_at:
-                    continue
-                if service_status.heartbeated_at < threshold:
-                    LOG.debug(
-                        "Service status %(id)s has been DOWN since "
-                        "%(heartbeated_at)s, deleting",
-                        {"id": service_status.id,
-                         "heartbeated_at": service_status.heartbeated_at})
-                    self.central_api.delete_service_status(
-                        ctxt, service_status)
-        except exceptions.MarkerNotFound:
-            pass
-
     def __call__(self):
-        LOG.info("Cleaning up stopped service statuses")
+        pstart, pend = self._my_range()
+        LOG.info(
+            "Performing cleanup check on services for %(start)s to %(end)s",
+            {
+                "start": pstart,
+                "end": pend
+            })
 
         ctxt = context.DesignateContext.get_admin_context()
         ctxt.all_tenants = True
 
-        criterion = {"status": constants.SERVICE_STOPPED}
-        try:
-            for service_status in self._iter_service_statuses(ctxt, criterion):
-                self.central_api.delete_service_status(ctxt, service_status)
-        except exceptions.MarkerNotFound:
-            pass
-
-        self._delete_stale_down_services(ctxt)
+        # Delete "DOWN" services
+        criterion = {"status": constants.SERVICE_DOWN}
+        for service_status in self._iter_service_statuses(ctxt, criterion):
+            self.central_api.delete_service_status(ctxt, service_status)
