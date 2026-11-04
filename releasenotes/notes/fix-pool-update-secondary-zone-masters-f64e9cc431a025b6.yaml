@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    ``designate-manage pool update`` no longer replaces the masters of the
+    zones in the pool with the masters of the pool targets. The masters of a
+    secondary zone are its primary servers. After a pool update the zone was
+    transferred from the masters of the pool targets (normally the Designate
+    mDNS servers), NOTIFY messages from its primary servers were refused and
+    the zone no longer followed them. Secondary zones whose masters were
+    already replaced need their masters set again, for example with
+    ``openstack zone set --masters``.

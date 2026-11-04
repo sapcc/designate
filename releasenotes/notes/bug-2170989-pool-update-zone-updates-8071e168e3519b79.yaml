@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Fixed `bug 2170989`_ where ``designate-manage pool update`` updated every
+    zone of a pool on each run, even when only the pool name, description,
+    attributes or other settings that the zones do not depend on changed.
+    With thousands of zones this left many zones in ``PENDING`` for a long
+    time. The zones of a pool are now updated only when its targets change,
+    for example their masters or options.
+
+    .. _bug 2170989: https://bugs.launchpad.net/designate/+bug/2170989

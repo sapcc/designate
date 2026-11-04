@@ -204,6 +204,9 @@ class PoolCommands(base.Commands):
         return pool
 
     def _update_pool(self, pool_data, pool):
+        # The zones depend on the targets of the pool, see _update_zones.
+        old_targets = self._get_targets(pool)
+
         pool = DesignateAdapter.parse('YAML', pool_data, pool)
         self._validate_pool(pool)
 
@@ -211,7 +214,13 @@ class PoolCommands(base.Commands):
             self.output_message.append('Update Pool: %s' % pool)
         else:
             pool = self.central_api.update_pool(self.context, pool)
-            self._update_zones(pool)
+            # Updating the zones sets every zone of the pool to PENDING, so
+            # only do it when the targets of the pool changed.
+            if self._get_targets(pool) != old_targets:
+                self._update_zones(pool)
+            else:
+                LOG.info('The targets of pool %s did not change, not '
+                         'updating its zones', pool.id)
 
     def _delete_pool(self, pool_name):
         pool = self.central_api.find_pool(
@@ -225,7 +234,7 @@ class PoolCommands(base.Commands):
             self.central_api.delete_pool(self.context, pool.id)
 
     def _update_zones(self, pool):
-        LOG.info('Updating zone masters for pool: %s', pool.id)
+        LOG.info('Updating the zones of pool %s', pool.id)
 
         policy.init()
         self.context.all_tenants = True
@@ -233,10 +242,11 @@ class PoolCommands(base.Commands):
             self.context, criterion={'pool_id': pool.id}
         )
 
+        # Updating a zone makes the backends apply the masters of the pool
+        # targets, e.g. with rndc modzone for bind9. The masters of the zone
+        # itself are not used for that: they are the primary servers of a
+        # secondary zone, so they must stay as they are.
         for zone in zones:
-            zone.masters = objects.ZoneMasterList().from_list(
-                self._get_masters_from_pool(pool)
-            )
             self.central_api.update_zone(self.context, zone)
 
     def _validate_pool(self, pool):
@@ -256,18 +266,23 @@ class PoolCommands(base.Commands):
                         raise SystemExit(1)
 
     @staticmethod
-    def _get_masters_from_pool(pool):
-        masters = []
-        for target in pool.targets:
-            for master in target.get('masters', []):
-                master = {'host': master['host'], 'port': master['port']}
-                found = False
-                for existing_master in masters:
-                    if master == existing_master:
-                        found = True
-                if not found:
-                    masters.append(master)
-        return masters
+    def _get_targets(pool):
+        """Return the target settings of a pool that the zones depend on.
+
+        The order of the targets, masters and options does not matter.
+        """
+        targets = []
+        for target in pool.get('targets', []):
+            options = sorted(
+                (option.key, str(option.value))
+                for option in target.get('options', [])
+            )
+            masters = sorted(
+                (master.host, master.port)
+                for master in target.get('masters', [])
+            )
+            targets.append((str(target.get('type')), options, masters))
+        return sorted(targets)
 
     @staticmethod
     def _load_config(filename):
