@@ -16,6 +16,7 @@
 import json
 
 from oslo_log import log as logging
+from oslo_utils import strutils
 import pecan
 
 from designate.api.v2.controllers import rest
@@ -24,7 +25,6 @@ from designate import objects
 from designate.objects.adapters import DesignateAdapter
 from designate import utils
 
-from oslo_utils import strutils
 
 
 LOG = logging.getLogger(__name__)
