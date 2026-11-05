@@ -55,7 +55,7 @@ LOG = logging.getLogger(__name__)
 
 
 class Service(service.RPCService):
-    RPC_API_VERSION = '6.12'
+    RPC_API_VERSION = '6.13'
 
     target = messaging.Target(version=RPC_API_VERSION)
 
@@ -2931,9 +2931,12 @@ class Service(service.RPCService):
             except exceptions.InvalidTTL as e:
                 zone_import.status = 'ERROR'
                 zone_import.message = str(e)
+            except exceptions.BadRequest as e:
+                zone_attributes.status = 'ERROR'
+                zone_attributes.message = str(e)
             except exceptions.Forbidden:
                 zone_import.status = 'ERROR'
-                zone_import.message = 'Failed to create zone - Forbidden'
+                zone_import.message = 'Not allowed to import the zone.'
             except exceptions.OverQuota:
                 zone_import.status = 'ERROR'
                 zone_import.message = 'Quota exceeded during zone import.'
@@ -2946,7 +2949,7 @@ class Service(service.RPCService):
                 )
                 zone_import.status = 'ERROR'
 
-        self.update_zone_import(context.elevated(), zone_import)
+        self.update_zone_import(context, zone_import)
 
     def _create_or_sync_zone(self, context, zone):
         """Update an existing zone's recordsets from an imported zonefile.
