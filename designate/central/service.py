@@ -112,10 +112,10 @@ class Service(service.RPCService):
 
         super().start()
         self.coordination.start()
-        self.heartbeat.start()        
+        self.heartbeat.start()
 
     def stop(self, graceful=True):
-        self.heartbeat.stop()        
+        self.heartbeat.stop()
         self.coordination.stop()
         super().stop(graceful)
 
