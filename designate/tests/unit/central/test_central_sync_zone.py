@@ -258,7 +258,7 @@ class ApplyIncomingRecordsTestCase(oslotest.base.BaseTestCase):
         existing = self._make_rrset('192.0.2.1', ttl=300)
         incoming = self._make_rrset('192.0.2.1', ttl=300)
 
-        result = self.service._apply_incoming_records(existing, incoming)
+        result = self.service._build_recordset_to_update(existing, incoming)
 
         self.assertIsNone(result)
 
@@ -267,7 +267,7 @@ class ApplyIncomingRecordsTestCase(oslotest.base.BaseTestCase):
         existing = self._make_rrset('192.0.2.1', ttl=300)
         incoming = self._make_rrset('192.0.2.1', ttl=None)
 
-        result = self.service._apply_incoming_records(existing, incoming)
+        result = self.service._build_recordset_to_update(existing, incoming)
 
         self.assertIsNone(result)
 
@@ -276,7 +276,7 @@ class ApplyIncomingRecordsTestCase(oslotest.base.BaseTestCase):
         existing = self._make_rrset('192.0.2.1', ttl=300)
         incoming = self._make_rrset('192.0.2.2', ttl=300)
 
-        result = self.service._apply_incoming_records(existing, incoming)
+        result = self.service._build_recordset_to_update(existing, incoming)
 
         self.assertIsNotNone(result)
         assert result is not None
@@ -288,7 +288,7 @@ class ApplyIncomingRecordsTestCase(oslotest.base.BaseTestCase):
         existing = self._make_rrset('192.0.2.1', ttl=300)
         incoming = self._make_rrset('192.0.2.1', '192.0.2.2', ttl=300)
 
-        result = self.service._apply_incoming_records(existing, incoming)
+        result = self.service._build_recordset_to_update(existing, incoming)
 
         self.assertIsNotNone(result)
         assert result is not None
@@ -300,7 +300,7 @@ class ApplyIncomingRecordsTestCase(oslotest.base.BaseTestCase):
         existing = self._make_rrset('192.0.2.1', '192.0.2.2', ttl=300)
         incoming = self._make_rrset('192.0.2.1', ttl=300)
 
-        result = self.service._apply_incoming_records(existing, incoming)
+        result = self.service._build_recordset_to_update(existing, incoming)
 
         self.assertIsNotNone(result)
         assert result is not None
@@ -312,7 +312,7 @@ class ApplyIncomingRecordsTestCase(oslotest.base.BaseTestCase):
         existing = self._make_rrset('192.0.2.1', ttl=300)
         incoming = self._make_rrset('192.0.2.1', ttl=600)
 
-        result = self.service._apply_incoming_records(existing, incoming)
+        result = self.service._build_recordset_to_update(existing, incoming)
 
         self.assertIsNotNone(result)
         assert result is not None
@@ -323,7 +323,7 @@ class ApplyIncomingRecordsTestCase(oslotest.base.BaseTestCase):
         existing = self._make_rrset('192.0.2.1', ttl=300)
         incoming = self._make_rrset('192.0.2.2', ttl=None)
 
-        result = self.service._apply_incoming_records(existing, incoming)
+        result = self.service._build_recordset_to_update(existing, incoming)
 
         self.assertIsNotNone(result)
         assert result is not None
@@ -336,7 +336,7 @@ class ApplyIncomingRecordsTestCase(oslotest.base.BaseTestCase):
         original_record = list(existing.records)[0]
         incoming = self._make_rrset('192.0.2.1', '192.0.2.2', ttl=300)
 
-        result = self.service._apply_incoming_records(existing, incoming)
+        result = self.service._build_recordset_to_update(existing, incoming)
 
         assert result is not None
         kept = [r for r in result.records if r.data == '192.0.2.1']

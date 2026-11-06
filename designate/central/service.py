@@ -3008,9 +3008,9 @@ class Service(service.RPCService):
                 continue
             # Apply incoming records onto the existing rrset; None means
             # no change — skip to avoid a spurious serial bump.
-            merged = self._apply_incoming_records(existing, incoming)
-            if merged is not None:
-                to_update.append(merged)
+            update_to_recodset = self._build_recordset_to_update(existing, incoming)
+            if update_to_recodset is not None:
+                to_update.append(update_to_recodset)
 
         to_create = [
             r
@@ -3060,22 +3060,28 @@ class Service(service.RPCService):
 
         return self.storage.get_zone(ctx, existing_zone.id)
 
-    def _apply_incoming_records(self, existing_rrset, incoming_rrset):
+    def _build_recordset_to_update(self, existing_rrset, incoming_rrset):
+        """
+            Keeps existing Record objects so storage updates them in place
+            instead of delete+recreate — preserving IDs and avoiding unnecessary
+            PENDING churn for records whose value did not change.
+        """
         incoming_record_values = {r.data for r in incoming_rrset.records}
         existing_record_values = {r.data for r in existing_rrset.records}
         ttl_unchanged = (incoming_rrset.ttl is None
                          or existing_rrset.ttl == incoming_rrset.ttl)
         if incoming_record_values == existing_record_values and ttl_unchanged:
             return None
-        # Reuse existing Record objects so storage updates them in place
-        # instead of delete+recreate — preserving IDs and avoiding unnecessary
-        # PENDING churn for records whose value did not change.
         kept_records = [
-            r for r in existing_rrset.records if r.data in incoming_record_values
+            r 
+            for r in existing_rrset.records 
+            if r.data in incoming_record_values
         ]
         # Only create new objects for values not already in the rrset.
         new_records = [
-            r for r in incoming_rrset.records if r.data not in existing_record_values
+            r 
+            for r in incoming_rrset.records 
+            if r.data not in existing_record_values
         ]
         existing_rrset.records = objects.RecordList(
             objects=kept_records + new_records)
