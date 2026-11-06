@@ -35,11 +35,25 @@ class ZoneAPIv2Adapter(base.APIv2Adapter):
             "description": {
                 'read_only': False
             },
+            "refresh": {
+                'read_only': False
+            },
+            "retry": {
+                'read_only': False
+            },
+            "expire": {
+                'read_only': False
+            },
+            "minimum": {
+                'read_only': False
+            },
             "ttl": {
                 'read_only': False
             },
-            "serial": {},
             "shared": {},
+            "serial": {
+                'read_only': False
+            },
             "status": {},
             "action": {},
             "version": {},
