@@ -77,7 +77,8 @@ class Service(service.RPCService):
         )
         self.network_api = network_api.get_network_api(CONF.network_api)
         self.heartbeat = heartbeat_emitter.get_heartbeat_emitter(
-            self.service_name)
+            self.service_name,
+            rpc_api=self)
 
     @property
     def scheduler(self):
@@ -3179,11 +3180,13 @@ class Service(service.RPCService):
         try:
             db_status = self.storage.find_service_status(
                 context, criterion)
+            db_status.update(dict(service_status))
+
             return self.storage.delete_service_status(context, db_status)
         except exceptions.ServiceStatusNotFound:
             LOG.warning(
-                "Service status entry for %(service_name)s "
-                "at %(hostname)s not found, skipping deletion",
+                "Deleting service status entry for %(service_name)s "
+                "at %(hostname)s",
                 {
                     'service_name': service_status.service_name,
                     'hostname': service_status.hostname

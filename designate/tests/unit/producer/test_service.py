@@ -53,6 +53,8 @@ class ProducerServiceTest(oslotest.base.BaseTestCase):
         self.tg = mock.Mock()
         self.service = service.Service()
         self.service.coordination = mock.Mock()
+        self.service.heartbeat = mock.Mock()
+        self.service.rpc_server = mock.Mock()
         self.service.tg = self.tg
 
         mock_policy_init.assert_called_once()
@@ -100,6 +102,7 @@ class ProducerServiceTest(oslotest.base.BaseTestCase):
         self.service.stop()
 
         self.service.coordination.stop.assert_called()
+        self.service.heartbeat.stop.assert_called()
 
         self.assertIn('Stopping producer service', self.stdlog.logger.output)
 

@@ -44,6 +44,7 @@ class HeartbeatEmitter(plugin.DriverPlugin):
         super().__init__()
 
         self._status = constants.SERVICE_UP
+        self._status = constants.SERVICE_UP
         self._stats = {}
         self._capabilities = {}
 
@@ -95,6 +96,10 @@ class HeartbeatEmitter(plugin.DriverPlugin):
         Transmit heartbeat
         """
 
+    @abc.abstractmethod
+    def stop_transmit(selt, status):
+        pass
+
     def _emit_heartbeat(self):
         stats, capabilities = self.get_stats_and_capabilities()
 
@@ -118,6 +123,9 @@ class NoopEmitter(HeartbeatEmitter):
     def transmit(self, status):
         LOG.info(status)
 
+    def stop_transmit(self, status):
+        LOG.info(status)
+
 
 class RpcEmitter(HeartbeatEmitter):
     __plugin_name__ = 'rpc'
@@ -127,6 +135,11 @@ class RpcEmitter(HeartbeatEmitter):
         self.rpc_api = rpc_api
 
     def transmit(self, status):
+        admin_context = context.DesignateContext.get_admin_context()
+        api = self.rpc_api or central_rpcapi.CentralAPI.get_instance()
+        api.update_service_status(admin_context, status)
+
+    def stop_transmit(self, status):
         admin_context = context.DesignateContext.get_admin_context()
         api = self.rpc_api or central_rpcapi.CentralAPI.get_instance()
         api.update_service_status(admin_context, status)
