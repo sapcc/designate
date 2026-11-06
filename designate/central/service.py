@@ -415,7 +415,7 @@ class Service(service.RPCService):
         address = zone['email']
         atsign = address.index('@')
         soa_address = (address[0:atsign].replace('.', '\\.') + '.' +
-            address[atsign + 1:])
+                       address[atsign + 1:])
 
         # The lowest priority ns_record is used as the SOA MNAME. Ties are
         # broken by ns_records' existing order.
@@ -1362,9 +1362,9 @@ class Service(service.RPCService):
         if not context.all_tenants and criterion:
             # Check that they are asking for another projects shares
             target = {constants.RBAC_PROJECT_ID: criterion.get(
-                          'target_project_id', context.project_id),
-                      'tenant_id': criterion.get(
-                          'target_project_id', context.project_id)}
+                'target_project_id', context.project_id),
+                'tenant_id': criterion.get(
+                'target_project_id', context.project_id)}
 
             policy.check('find_project_zone_share', context, target)
 
@@ -1479,7 +1479,7 @@ class Service(service.RPCService):
                  {'zone': zone.name, 'pool': target_pool_id})
         zone.pool_id = target_pool_id
         zone = self._update_zone_in_storage(
-                context, zone, increment_serial=False)
+            context, zone, increment_serial=False)
 
         zone.refresh = self._generate_soa_refresh_interval()
         zone.action = constants.UPDATE
@@ -2951,62 +2951,154 @@ class Service(service.RPCService):
 
         self.update_zone_import(context, zone_import)
 
-    def _create_or_sync_zone(self, context, zone):
-        """Update an existing zone's recordsets from an imported zonefile.
+    def _build_sync_zone_delta(self, context, existing_zone, incoming_zone):
+        """Compute the recordset changes needed to sync existing_zone to new_zone.
 
-        If the zone does not exist yet, create it normally.
-        If it does exist, synchronise recordsets:
-          - present in new, absent in old  -> create
-          - present in both                -> update
-          - absent in new, present in old  -> delete
-        SOA and apex NS records are skipped (managed by Designate).
+        Returns a dict with keys:
+          to_create  - list of RecordSet objects to insert
+          to_update  - list of already-merged RecordSet objects to update
+          to_delete  - list of existing RecordSet objects to remove
+          serial     - zone serial at read time for optimistic concurrency check
         """
+        if existing_zone.action == 'DELETE':
+            raise exceptions.BadRequest('Cannot force-import into a zone '
+                                        'that is being deleted')
+
+        # incoming rrsets do not have managed, would
+        def _is_protected(rrset, zone_name, ignore_managed=False):
+            # These are either Designate-internal (SOA, apex NS) or owned by
+            # an external system (managed/sink records) — a zone import must
+            return (
+                rrset.type == 'SOA'
+                or (rrset.type == 'NS' and rrset.name == zone_name)
+                or (not ignore_managed and rrset.managed)
+            )
+
+        # Without apply_tenant_criteria=False, managed records (tenant_id NULL)
+        # would be ignored and could cause false create attempts
+        all_existing_rrsets = self.storage.find_recordsets(
+            context,
+            {'zone_id': existing_zone.id},
+            apply_tenant_criteria=False,
+        )
+
+        existing_rrsets = {
+            (r.name, r.type): r
+            for r in all_existing_rrsets
+        }
+
+        incoming_rrsets = {
+            (r.name, r.type): r
+            for r in incoming_zone.recordsets
+        }
+
+        to_delete = [
+            r
+            for key, r in existing_rrsets.items()
+            if key not in incoming_rrsets
+            and not _is_protected(r, incoming_zone.name)
+        ]
+
+        to_update = []
+        for key, incoming in incoming_rrsets.items():
+            if key not in existing_rrsets:
+                continue
+            existing = existing_rrsets[key]
+            if _is_protected(existing, incoming_zone.name):
+                continue
+            # Apply incoming records onto the existing rrset; None means
+            # no change — skip to avoid a spurious serial bump.
+            merged = self._apply_incoming_records(existing, incoming)
+            if merged is not None:
+                to_update.append(merged)
+
+        to_create = [
+            r
+            for key, r in incoming_rrsets.items()
+            if key not in existing_rrsets
+            and not _is_protected(r, incoming_zone.name, ignore_managed=True)
+        ]
+
+        return {
+            'to_create': to_create,
+            'to_update': to_update,
+            'to_delete': to_delete,
+            'serial': existing_zone.serial,
+        }
+
+    def _apply_sync_zone_delta(self, context, existing_zone, delta):
+        """Apply a sync delta produced by _build_sync_zone_delta."""
+
+        # If no changes do nothing e.g. do not increase the zone serial.
+        if not any([delta['to_delete'], delta['to_update'], delta['to_create']]):
+            return existing_zone
+
+        # RBAC was enforced by the force-import policy; elevate so the storage
+        # layer does not re-apply tenant criteria and reject cross-tenant writes.
+        ctx = context.elevated(all_tenants=True)
+
+        for rrset in delta['to_delete']:
+            LOG.debug('Force import: deleting recordset %s in zone %s',
+                      rrset.id, existing_zone.id)
+            self._delete_recordset_in_storage(
+                ctx, existing_zone, rrset, increment_serial=False)
+
+        for rrset in delta['to_update']:
+            LOG.debug('Force import: updating recordset %s in zone %s',
+                      rrset.id, existing_zone.id)
+            self._update_recordset_in_storage(
+                ctx, existing_zone, rrset, increment_serial=False)
+
+        for rrset in delta['to_create']:
+            LOG.debug('Force import: creating recordset %s in zone %s',
+                      rrset.name, existing_zone.id)
+            self._create_recordset_in_storage(
+                ctx, existing_zone, rrset, increment_serial=False)
+
+        # Increment zone-serial once at the end of the transaction
+        self._update_zone_in_storage(ctx, existing_zone, increment_serial=True)
+
+        return self.storage.get_zone(ctx, existing_zone.id)
+
+    def _apply_incoming_records(self, existing_rrset, incoming_rrset):
+        incoming_record_values = {r.data for r in incoming_rrset.records}
+        existing_record_values = {r.data for r in existing_rrset.records}
+        ttl_unchanged = (incoming_rrset.ttl is None
+                         or existing_rrset.ttl == incoming_rrset.ttl)
+        if incoming_record_values == existing_record_values and ttl_unchanged:
+            return None
+        # Reuse existing Record objects so storage updates them in place
+        # instead of delete+recreate — preserving IDs and avoiding unnecessary
+        # PENDING churn for records whose value did not change.
+        kept_records = [
+            r for r in existing_rrset.records if r.data in incoming_record_values
+        ]
+        # Only create new objects for values not already in the rrset.
+        new_records = [
+            r for r in incoming_rrset.records if r.data not in existing_record_values
+        ]
+        existing_rrset.records = objects.RecordList(
+            objects=kept_records + new_records)
+        if incoming_rrset.ttl is not None:
+            existing_rrset.ttl = incoming_rrset.ttl
+        return existing_rrset
+
+    @transaction
+    def _create_or_sync_zone(self, context, incoming_zone):
         try:
             existing_zone = self.storage.find_zone(
-                context, {'name': zone.name})
+                context, {'name': incoming_zone.name})
         except exceptions.ZoneNotFound:
-            zone = self.create_zone(context, zone)
-            return zone 
+            return self.create_zone(context, incoming_zone)
 
-        # Build lookup dicts keyed by "<name>_<type>"
-        criterion = {'zone_id': existing_zone.id}
-        existing_rrsets = {
-            f'{r.name}_{r.type}': r
-            for r in self.storage.find_recordsets(context, criterion)
-            if not (r.type == 'SOA' or
-                    (r.type == 'NS' and r.name == existing_zone.name))
-        }
-        # SOA/apex-NS already stripped in _import_zone; zone.recordsets contains
-        # only importable records at this point.
-        new_rrsets = {
-            f'{r.name}_{r.type}': r
-            for r in zone.recordsets
-        }
+        # We need to check if the zone is not from a shared project
+        if existing_zone.tenant_id != context.project_id:
+            raise exceptions.Forbidden
 
-        # Sync records of zone
-        try:
-            for key, existing in existing_rrsets.items():
-                if key not in new_rrsets:
-                    LOG.debug('Force import: deleting recordset %s for zone %s',
-                              existing.id, existing_zone.id)
-                    self.delete_recordset(context, existing_zone.id, existing.id, increment_serial=False)
-                else:
-                    existing.obj_reset_changes()
-                    existing.records = new_rrsets[key].records
-                    LOG.debug('Force import: updating recordset %s for zone %s',
-                              key, existing_zone.id)
-                    self.update_recordset(context, existing, increment_serial=False)
-    
-            for key, new in new_rrsets.items():
-                if key not in existing_rrsets:
-                    LOG.debug('Force import: creating recordset %s for zone %s',
-                              key, existing_zone.id)
-                    self.create_recordset(context, existing_zone.id, new, increment_serial=False)
-        finally:
-            # Single serial increment + mdns notify for all recordsets;
-            # finally ensures no half-updated zone is left without a notify.
-            self._update_zone_in_storage(context, existing_zone, increment_serial=True);
-        return existing_zone
+        zone_delta = self._build_sync_zone_delta(
+            context, existing_zone, incoming_zone)
+
+        return self._apply_sync_zone_delta(context, existing_zone, zone_delta)
 
     @notification.notify_type('dns.zone_import.update')
     def update_zone_import(self, context, zone_import):
@@ -3050,9 +3142,9 @@ class Service(service.RPCService):
     def delete_zone_import(self, context, zone_import_id):
 
         target = {
-                'zone_import_id': zone_import_id,
-                constants.RBAC_PROJECT_ID: context.project_id,
-                'tenant_id': context.project_id
+            'zone_import_id': zone_import_id,
+            constants.RBAC_PROJECT_ID: context.project_id,
+            'tenant_id': context.project_id
         }
 
         policy.check('delete_zone_import', context, target)

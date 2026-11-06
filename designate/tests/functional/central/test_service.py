@@ -4192,6 +4192,112 @@ class CentralServiceTest(designate.tests.functional.TestCase):
                          zone_import.message)
         self.assertEqual('ERROR', zone_import.status)
 
+    # --- helpers used by the force-import tests below -------------------
+
+    def _make_owner_context(self):
+        # Lazy stable member context — same owner across all helper calls
+        # within one test instance.
+        if not hasattr(self, '_owner_ctx'):
+            self._owner_ctx = self.get_context(
+                project_id=uuidutils.generate_uuid(),
+                roles=['member', 'reader'])
+        return self._owner_ctx
+
+    def _import(self, extra_records='', force=False, context=None):
+        # Import example.com. with optional extra DNS records appended.
+        # Returns the completed ZoneImport (COMPLETE or ERROR).
+        if context is None:
+            context = self._make_owner_context()
+        body = self.get_zonefile_fixture()
+        if extra_records:
+            body = body + extra_records + '\n'
+        zi = self.central_service.create_zone_import(
+            context, body, force=force)
+        return self.wait_for_import(zi.id, error_is_ok=True)
+
+    def _rrsets(self, zone_id):
+        # Return a set of (name, type) tuples for all recordsets in a zone.
+        rs = self.central_service.storage.find_recordsets(
+            self.admin_context, criterion={'zone_id': zone_id},
+            apply_tenant_criteria=False)
+        return {(r.name, r.type) for r in rs}
+
+    def _zone(self, zone_id):
+        # Fetch a zone by id using the admin context.
+        return self.central_service.storage.get_zone(self.admin_context, zone_id,
+                                                     apply_tenant_criteria=False)
+
+    # --- force-import scenario tests ------------------------------------
+
+    def test_recordset_owned_by_shared_project(self):
+        # Owner imports the zone; a second project gets shared access and
+        # adds a recordset.  Owner force-reimports with the same name but a
+        # different address — must complete and overwrite the shared record.
+        first = self._import()
+        other = self.get_context(project_id=uuidutils.generate_uuid(),
+                                 roles=['member', 'reader'])
+        self.share_zone(context=self._make_owner_context(),
+                        zone_id=first.zone_id,
+                        target_project_id=other.project_id)
+        shared_rrset = self.central_service.create_recordset(
+            other, first.zone_id,
+            objects.RecordSet(
+                name='shared.example.com.',
+                type='A',
+                records=objects.RecordList(
+                    objects=[objects.Record(data='192.0.2.9')])))
+
+        result = self._import('shared 300 IN A 192.0.2.10', force=True)
+        self.assertEqual('COMPLETE', result.status, result.message)
+
+        updated = self.central_service.storage.find_recordset(
+            self._make_owner_context(), criterion={'id': shared_rrset.id},
+            apply_tenant_criteria=False)
+        self.assertEqual('192.0.2.10', list(updated.records)[0].data)
+
+    def test_zone_with_managed_records(self):
+        # A managed record (e.g. Floating-IP sink) must survive a
+        # force-import when it appears in the new zonefile.
+        first = self._import()
+        sink_ctx = self.get_context().elevated()
+        sink_ctx.all_tenants = True
+        sink_ctx.edit_managed_records = True
+        self.central_service.create_managed_records(
+            sink_ctx, first.zone_id,
+            records_values=[{
+                'data': '192.0.2.10',
+                'managed': True,
+                'managed_plugin_name': 'plugin',
+                'managed_plugin_type': 'plugin',
+                'managed_resource_type': 'instance',
+                'managed_resource_id': uuidutils.generate_uuid(),
+            }],
+            recordset_values={'zone_id': first.zone_id,
+                              'name': 'vm.example.com.', 'type': 'A'},
+        )
+        result = self._import('vm 3600 IN A 192.0.2.10', force=True)
+        self.assertEqual('COMPLETE', result.status, result.message)
+        self.assertIn(('vm.example.com.', 'A'), self._rrsets(first.zone_id))
+
+    def test_shared_project_cannot_force_import_owner_zone(self):
+        # A project with only shared access must not be able to alter the
+        # owner's zone via force-import: result must be ERROR, no record
+        # written, serial flag unchanged.
+        first = self._import()
+        other = self.get_context(project_id=uuidutils.generate_uuid(),
+                                 roles=['member', 'reader'])
+        self.share_zone(context=self._make_owner_context(),
+                        zone_id=first.zone_id,
+                        target_project_id=other.project_id)
+        flag_before = self._zone(first.zone_id).increment_serial
+        result = self._import('evil 300 IN A 192.0.2.66', force=True,
+                              context=other)
+        self.assertEqual('ERROR', result.status, result.message)
+        self.assertNotIn(('evil.example.com.', 'A'),
+                         self._rrsets(first.zone_id))
+        self.assertEqual(flag_before,
+                         self._zone(first.zone_id).increment_serial)
+
     def test_force_import_zone_creates_zone_when_not_existing(self):
         # force=True on a zone that does not exist yet should behave
         # identically to a normal import — create_zone is called once.
@@ -4282,7 +4388,80 @@ class CentralServiceTest(designate.tests.functional.TestCase):
             self.central_service.storage.find_recordset(
                 context, criterion={'id': extra_rrset.id})
 
+    def test_force_import_unchanged_records_preserve_ids(self):
+        # Records that are unchanged across a force-reimport must keep their
+        # original storage IDs — no delete+recreate churn for stable data.
+        first = self._import()
+        zone_id = first.zone_id
 
+        # Collect record IDs after the first import.
+        all_rrsets = self.central_service.storage.find_recordsets(
+            self.admin_context,
+            criterion={'zone_id': zone_id},
+            apply_tenant_criteria=False)
+        record_ids_before = {
+            r.id
+            for rrset in all_rrsets
+            for r in rrset.records
+        }
+
+        # Force-reimport the identical zonefile — nothing changes.
+        second = self._import(force=True)
+        self.assertEqual('COMPLETE', second.status, second.message)
+
+        all_rrsets_after = self.central_service.storage.find_recordsets(
+            self.admin_context,
+            criterion={'zone_id': zone_id},
+            apply_tenant_criteria=False)
+        record_ids_after = {
+            r.id
+            for rrset in all_rrsets_after
+            for r in rrset.records
+        }
+
+        # Every record that existed before must still have the same ID.
+        self.assertEqual(record_ids_before, record_ids_after)
+
+    def test_force_import_with_changes_sets_increment_serial_flag(self):
+        # A force-import that changes recordsets must set increment_serial=True
+        # on the zone — the Producer picks this up to bump the serial and
+        # trigger DNS notify to secondaries.
+        first = self._import()
+        zone_id = first.zone_id
+
+        # Simulate the Producer having already processed the first import.
+        self.central_service.storage.increment_serial(
+            self.admin_context, zone_id)
+        self.assertFalse(self._zone(zone_id).increment_serial)
+
+        second = self._import(
+            extra_records=(
+                'changed1 300 IN A 192.0.2.51\n'
+                'changed2 300 IN A 192.0.2.52\n'
+                'changed3 300 IN A 192.0.2.53\n'
+            ),
+            force=True,
+        )
+        self.assertEqual('COMPLETE', second.status, second.message)
+
+        self.assertTrue(self._zone(zone_id).increment_serial)
+
+    def test_force_import_without_changes_does_not_set_increment_serial_flag(self):
+        # An identical reimport must not set increment_serial=True — no
+        # recordsets changed, so no serial bump and no DNS notify needed.
+        first = self._import()
+        zone_id = first.zone_id
+
+        # Simulate the Producer having already processed the first import.
+        self.central_service.storage.increment_serial(
+            self.admin_context, zone_id)
+        
+        self.assertFalse(self._zone(zone_id).increment_serial)
+
+        second = self._import(force=True)
+        self.assertEqual('COMPLETE', second.status, second.message)
+
+        self.assertFalse(self._zone(zone_id).increment_serial)
 
     def test_find_zone_imports(self):
         context = self.get_context(project_id=uuidutils.generate_uuid(),
@@ -4290,7 +4469,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
         # Ensure we have no zone_imports to start with.
         zone_imports = self.central_service.find_zone_imports(
-                         self.admin_context)
+            self.admin_context)
         self.assertEqual(0, len(zone_imports))
 
         # Create a single zone_import
@@ -4303,7 +4482,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
         # Ensure we can retrieve the newly created zone_import
         zone_imports = self.central_service.find_zone_imports(
-                         self.admin_context_all_tenants)
+            self.admin_context_all_tenants)
         self.assertEqual(1, len(zone_imports))
 
         # Create a second zone_import
@@ -4316,7 +4495,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
         # Ensure we can retrieve both zone_imports
         zone_imports = self.central_service.find_zone_imports(
-                         self.admin_context_all_tenants)
+            self.admin_context_all_tenants)
         self.assertEqual(2, len(zone_imports))
         self.assertEqual('COMPLETE', zone_imports[0].status)
         self.assertEqual('COMPLETE', zone_imports[1].status)
@@ -4327,7 +4506,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
                                    roles=['member', 'reader'])
         request_body = self.get_zonefile_fixture()
         zone_import = self.central_service.create_zone_import(
-                    context, request_body)
+            context, request_body)
 
         # Wait for the import to complete
         self.wait_for_import(zone_import.id)
@@ -4346,7 +4525,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
                                    roles=['member', 'reader'])
         request_body = self.get_zonefile_fixture()
         zone_import = self.central_service.create_zone_import(
-                    context, request_body)
+            context, request_body)
 
         self.wait_for_import(zone_import.id)
 
@@ -4370,7 +4549,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
                                    roles=['member', 'reader'])
         request_body = self.get_zonefile_fixture()
         zone_import = self.central_service.create_zone_import(
-                    context, request_body)
+            context, request_body)
 
         self.wait_for_import(zone_import.id)
 
@@ -4796,7 +4975,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # create second pool
         second_pool = self.create_pool(fixture=1)
         self.create_tsigkey(name='test-key-second-pool', scope='POOL',
-                           resource_id=second_pool.id)
+                            resource_id=second_pool.id)
         self.storage.create_pool_ns_record(
             self.admin_context, second_pool['id'],
             objects.PoolNsRecord(priority=1, hostname='ns-new.example.org.')
@@ -4828,7 +5007,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # Destination pool, also with a catalog zone
         second_pool = self.create_pool(fixture=3)
         self.create_tsigkey(name='test-key-second-pool', scope='POOL',
-                           resource_id=second_pool.id)
+                            resource_id=second_pool.id)
         self.storage.create_pool_ns_record(
             self.admin_context, second_pool['id'],
             objects.PoolNsRecord(priority=1, hostname='ns-new.example.org.')
@@ -4854,7 +5033,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         self.create_tsigkey(scope='POOL', resource_id=pool.id)
         second_pool = self.create_pool(fixture=1)
         self.create_tsigkey(name='test-key-second-pool', scope='POOL',
-                           resource_id=second_pool.id)
+                            resource_id=second_pool.id)
 
         self.config(scheduler_filters=['pool_id_attribute'],
                     group='service:central')
@@ -4872,7 +5051,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         )
 
         self.central_service.pool_move_zone(self.admin_context,
-            zone.id, pool['id'])
+                                            zone.id, pool['id'])
         moved_zone = self.central_service.get_zone(
             self.admin_context, zone.id
         )
@@ -4917,7 +5096,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # create second pool
         second_pool = self.create_pool(fixture=1)
         self.create_tsigkey(name='test-key-second-pool', scope='POOL',
-                           resource_id=second_pool.id)
+                            resource_id=second_pool.id)
         new_ns_record = objects.PoolNsRecord(hostname='ns-new.example.org.')
         second_pool.ns_records.append(new_ns_record)
 
@@ -4938,7 +5117,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
         # create second pool
         second_pool = self.create_pool(fixture=1)
         self.create_tsigkey(name='test-key-second-pool', scope='POOL',
-                           resource_id=second_pool.id)
+                            resource_id=second_pool.id)
 
         zone.pool_id = second_pool['id']
         with mock.patch.object(self.central_service, '_get_pool_ns_records',
@@ -4983,7 +5162,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
 
         second_pool = self.create_pool(fixture=1)
         self.create_tsigkey(name='test-key-second-pool', scope='POOL',
-                           resource_id=second_pool.id)
+                            resource_id=second_pool.id)
         self.storage.create_pool_ns_record(
             self.admin_context, second_pool['id'],
             objects.PoolNsRecord(priority=1, hostname='ns-new.example.org.')
