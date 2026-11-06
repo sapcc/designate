@@ -58,9 +58,6 @@ def factory(global_config, **local_conf):
         # 2.2 SVCB and HTTPS record types
         _add_a_version(versions, 'v2.2', api_url, constants.SUPPORTED,
                        '2025-08-25T00:00:00Z')
-        # 2.3 Shared Pools
-        _add_a_version(versions, 'v2.3', api_url, constants.CURRENT,
-                       '2025-10-23T00:00:00Z')
 
         # 2.3 TLSA record type
         _add_a_version(versions, 'v2.3', api_url, constants.SUPPORTED,
@@ -69,6 +66,10 @@ def factory(global_config, **local_conf):
         # 2.4 Zone import JSON content type with attributes support
         _add_a_version(versions, 'v2.4', api_url, constants.CURRENT,
                        '2026-04-13T00:00:00Z')
+        
+        # 2.5 Shared Pools
+        _add_a_version(versions, 'v2.5', api_url, constants.CURRENT,
+                       '2026-11-06T00:00:00Z')
 
         return flask.jsonify({'versions': versions})
 
