@@ -13,7 +13,7 @@
 """add tsigkey_id to pool_nameservers
 
 Revision ID: d2a4aea32428
-Revises: f828412479ee
+Revises: 591b07cc1eab
 Create Date: 2026-02-24 12:00:00.000000
 
 """
@@ -25,7 +25,7 @@ from designate.storage.sqlalchemy.types import UUID
 
 # revision identifiers, used by Alembic.
 revision = 'd2a4aea32428'
-down_revision = 'f828412479ee'
+down_revision = '591b07cc1eab'
 branch_labels = None
 depends_on = None
 
