@@ -3250,10 +3250,7 @@ class Service(service.RPCService):
             raise exceptions.PoolWithoutDomainId(
                 f"Pool {pool_id} doesn't have domain_id "
                 f"Specify domain_id in pools.yaml.")
-        if policy.enforce_new_defaults():
-            target = {constants.RBAC_DOMAIN_ID: domain_id}
-        else:
-            target = {'domain_id': domain_id}
+        target = {constants.RBAC_DOMAIN_ID: domain_id}
 
         policy.check('share_pool', context, target)
         shared_pool['domain_id'] = pool.domain_id
@@ -3270,10 +3267,7 @@ class Service(service.RPCService):
         # Ensure the share exists and get the share owner
         shared_pool = self.get_shared_pool(context, pool_id, pool_share_id)
 
-        if policy.enforce_new_defaults():
-            target = {constants.RBAC_DOMAIN_ID: shared_pool.domain_id}
-        else:
-            target = {'domain_id': shared_pool.domain_id}
+        target = {constants.RBAC_DOMAIN_ID: shared_pool.domain_id}
 
         policy.check('unshare_pool', context, target)
 
@@ -3293,10 +3287,7 @@ class Service(service.RPCService):
         if not context.all_tenants:
             target_domain = (criterion or {}).get('target_domain_id')
             if target_domain and target_domain != context.project_domain_id:
-                if policy.enforce_new_defaults():
-                    target = {constants.RBAC_DOMAIN_ID: target_domain}
-                else:
-                    target = {'domain_id': target_domain}
+                target = {constants.RBAC_DOMAIN_ID: target_domain}
                 policy.check('find_domain_pool_share', context, target)
 
         shared_pools = self.storage.find_shared_pools(
@@ -3311,10 +3302,7 @@ class Service(service.RPCService):
         pool_share = self.storage.get_shared_pool(
             context, pool_id, pool_share_id)
 
-        if policy.enforce_new_defaults():
-            target = {constants.RBAC_DOMAIN_ID: pool_share.domain_id}
-        else:
-            target = {'domain_id': pool_share.domain_id}
+        target = {constants.RBAC_DOMAIN_ID: pool_share.domain_id}
 
         policy.check('get_pool_share', context, target)
 
