@@ -225,6 +225,42 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
 
         self.assertEqual('COMPLETE', result.status, result.message)
 
+    def test_force_import_update_exception_rolled_back(self):
+        rules = dict(OWNER_FORCE_ONLY_RULES)
+        self.policy(dict(rules))
+        first = self._import(
+            self.ops, 'www 300 IN A 192.0.2.1\nold 300 IN A 192.0.2.9')
+
+        original = self.central_service.storage.update_recordset
+        call_count = 0
+
+        def fail_on_second(context, rrset):
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                raise exceptions.BadRequest('Simulated failure')
+            return original(context, rrset)
+
+        with mock.patch.object(
+                self.central_service.storage,
+                'update_recordset',
+                side_effect=fail_on_second):
+            result = self._import(
+                self.zonemaster,
+                'www 300 IN A 192.0.2.2\nold 300 IN A 192.0.2.99',
+                force=True)
+
+        self.assertEqual('ERROR', result.status)
+        # Both recordsets must be in their original state due to @transaction
+        # rollback on _create_or_sync_zone.
+        rrsets = self._rrsets(first.zone_id)
+        self.assertEqual(['192.0.2.1'],
+                         [r.data for r in
+                          rrsets[('www.example.com.', 'A')].records])
+        self.assertEqual(['192.0.2.9'],
+                         [r.data for r in
+                          rrsets[('old.example.com.', 'A')].records])
+
 
 OPS = 'role:dns_ops'
 NO_A_UPDATES = {'update_recordset': '!', 'update_A_recordset': '!'}
