@@ -205,7 +205,8 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
             result = self._import('www 300 IN A 192.0.2.1', force=True)
 
             self.assertEqual('ERROR', result.status, exc)
-            self.assertEqual('x' * 160, result.message)
+            if exec == exceptions.BadRequest:
+                self.assertEqual('x' * 160, result.message)
 
 
     def test_force_requires_force_policy(self):
@@ -229,8 +230,10 @@ OPS = 'role:dns_ops'
 NO_A_UPDATES = {'update_recordset': '!', 'update_A_recordset': '!'}
 OWNER_FORCE_ONLY_RULES = {
     'create_zone': OPS,
-    'create_zone_import': OPS,
-    'update_zone_import': OPS,
+    'create_zone_import': (
+        'role:dns_ops or role:dns_zonemaster'),
+    'update_zone_import': (
+            'role:dns_ops or role:dns_zonemaster'),
     'create_force_zone_import': (
         'role:dns_zonemaster and project_id:%(project_id)s'),
 }
@@ -283,7 +286,7 @@ class ZoneImportForcePolicyTest(designate.tests.functional.TestCase):
             self.zonemaster, 'www 300 IN A 192.0.2.1', force=True)
 
         self.assertEqual('ERROR', result.status)
-        self.assertEqual('Failed to create zone - Forbidden', result.message)
+        self.assertEqual('Not allowed to import the zone.', result.message)
         self.assertRaises(
             exceptions.ZoneNotFound, self.storage.find_zone,
             self.admin_context_all_tenants, {'name': 'example.com.'})

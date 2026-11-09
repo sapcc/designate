@@ -2930,10 +2930,10 @@ class Service(service.RPCService):
                 zone_import.message = 'Duplicate zone.'
             except exceptions.InvalidTTL as e:
                 zone_import.status = 'ERROR'
-                zone_import.message = str(e)
+                zone_import.message = str(e)[:160]
             except exceptions.BadRequest as e:
-                zone_attributes.status = 'ERROR'
-                zone_attributes.message = str(e)
+                zone_import.status = 'ERROR'
+                zone_import.message = str(e)[:160]
             except exceptions.Forbidden:
                 zone_import.status = 'ERROR'
                 zone_import.message = 'Not allowed to import the zone.'
@@ -3008,7 +3008,8 @@ class Service(service.RPCService):
                 continue
             # Apply incoming records onto the existing rrset; None means
             # no change — skip to avoid a spurious serial bump.
-            update_to_recodset = self._build_recordset_to_update(existing, incoming)
+            update_to_recodset = self._build_recordset_to_update(
+                existing, incoming)
             if update_to_recodset is not None:
                 to_update.append(update_to_recodset)
 
@@ -3073,14 +3074,14 @@ class Service(service.RPCService):
         if incoming_record_values == existing_record_values and ttl_unchanged:
             return None
         kept_records = [
-            r 
-            for r in existing_rrset.records 
+            r
+            for r in existing_rrset.records
             if r.data in incoming_record_values
         ]
         # Only create new objects for values not already in the rrset.
         new_records = [
-            r 
-            for r in incoming_rrset.records 
+            r
+            for r in incoming_rrset.records
             if r.data not in existing_record_values
         ]
         existing_rrset.records = objects.RecordList(
@@ -3097,9 +3098,26 @@ class Service(service.RPCService):
         except exceptions.ZoneNotFound:
             return self.create_zone(context, incoming_zone)
 
-        # We need to check if the zone is not from a shared project
+        # zone.tenant_id needs to be equal to project_id, otherwise shared zone.
         if existing_zone.tenant_id != context.project_id:
             raise exceptions.Forbidden
+
+        # pool_move sohuld be done seperattly
+        requested_pool_id = None
+        if incoming_zone.obj_attr_is_set('attributes'):
+            requested_pool_id = next(
+                (a.value for a in incoming_zone.attributes
+                 if a.key == 'pool_id'), None)
+        if requested_pool_id != None and requested_pool_id != existing_zone.pool_id:
+            raise exceptions.BadRequest(
+                'Zone already exists in a different pool. '
+                'Use pool_move_zone to migrate.'
+            )
+
+        if existing_zone.type != constants.ZONE_PRIMARY:
+            raise exceptions.BadRequest(
+                'Cannot force import into a non-PRIMARY zone.'
+            )
 
         zone_delta = self._build_sync_zone_delta(
             context, existing_zone, incoming_zone)
