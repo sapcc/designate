@@ -2925,7 +2925,9 @@ class Service(service.RPCService):
                     zone = self.create_zone(context, zone)
                 zone_import.status = 'COMPLETE'
                 zone_import.zone_id = zone.id
-                zone_import.message = f'{zone.name} imported'
+                zone_import.message = (
+                    f'{zone.name} imported'
+                )
             except exceptions.DuplicateZone:
                 zone_import.status = 'ERROR'
                 zone_import.message = 'Duplicate zone.'
