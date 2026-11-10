@@ -25,8 +25,6 @@ from designate import objects
 from designate.objects.adapters import DesignateAdapter
 from designate import utils
 
-
-
 LOG = logging.getLogger(__name__)
 
 

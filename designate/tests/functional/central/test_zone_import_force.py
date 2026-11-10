@@ -29,12 +29,7 @@ example.com. 10800 IN NS ns1.example.com.
 """
 
 
-class ZoneImportForceTest(designate.tests.functional.TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self.context = self.get_context(
-            project_id=uuidutils.generate_uuid(), roles=['member', 'reader'])
+class ZoneImportForceTestBase(designate.tests.functional.TestCase):
 
     def _import(self, body, force=False, context=None, attributes=None):
         zone_import = self.central_service.create_zone_import(
@@ -50,6 +45,59 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
             self.admin_context_all_tenants, {'zone_id': zone_id})
         return {(r.name, r.type): r for r in rrsets}
 
+    def _data(self, zone_id):
+        return {key: sorted(record.data for record in rrset.records)
+                for key, rrset in self._rrsets(zone_id).items()}
+
+
+class ZoneImportForceTest(ZoneImportForceTestBase):
+
+    def setUp(self):
+        super().setUp()
+        self.context = self.get_context(
+            project_id=uuidutils.generate_uuid(), roles=['member', 'reader'])
+
+    def test_new_zone_is_created(self):
+        result = self._import('www 300 IN A 192.0.2.1', force=True)
+
+        self.assertEqual(('COMPLETE', 'example.com. imported'),
+                         (result.status, result.message))
+        self.assertEqual(['192.0.2.1'],
+                         self._data(result.zone_id)[('www.example.com.', 'A')])
+
+    def test_existing_zone_needs_force(self):
+        self._import('www 300 IN A 192.0.2.1')
+
+        result = self._import('www 300 IN A 192.0.2.2')
+
+        self.assertEqual(('ERROR', 'Duplicate zone.'),
+                         (result.status, result.message))
+
+    def test_zonefile_replaces_recordsets(self):
+        first = self._import(
+            'www 300 IN A 192.0.2.1\n'
+            'www 300 IN A 192.0.2.2\n'
+            'old 300 IN A 192.0.2.3\n'
+            'txt 300 IN TXT "same"')
+        self.assertFalse(self._zone(first.zone_id).increment_serial)
+
+        result = self._import(
+            'www 300 IN A 192.0.2.2\n'
+            'www 300 IN A 192.0.2.4\n'
+            'new 300 IN A 192.0.2.5\n'
+            'txt 300 IN TXT "same"', force=True)
+
+        self.assertEqual('COMPLETE', result.status, result.message)
+        self.assertEqual(first.zone_id, result.zone_id)
+        data = self._data(first.zone_id)
+        self.assertEqual(['192.0.2.2', '192.0.2.4'],
+                         data[('www.example.com.', 'A')])
+        self.assertEqual(['192.0.2.5'], data[('new.example.com.', 'A')])
+        self.assertNotIn(('old.example.com.', 'A'), data)
+        zone = self._zone(first.zone_id)
+        self.assertEqual(('UPDATE', 'PENDING'), (zone.action, zone.status))
+        self.assertTrue(zone.increment_serial)
+
     def test_changed_ttl_is_applied(self):
         first = self._import('www 300 IN A 192.0.2.1')
         result = self._import('www 3600 IN A 192.0.2.1', force=True)
@@ -58,44 +106,86 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
         rrset = self._rrsets(first.zone_id)[('www.example.com.', 'A')]
         self.assertEqual(3600, rrset.ttl)
 
+    def test_ttl_0_means_the_zone_ttl(self):
+        # Like for a new recordset
+        first = self._import('www 300 IN A 192.0.2.1')
+        result = self._import('www 0 IN A 192.0.2.1', force=True)
+
+        self.assertEqual('COMPLETE', result.status, result.message)
+        rrset = self._rrsets(first.zone_id)[('www.example.com.', 'A')]
+        self.assertIsNone(rrset.ttl)
+
     def test_unchanged_records_are_not_recreated(self):
         body = 'www 300 IN A 192.0.2.1\nwww 300 IN A 192.0.2.2'
         first = self._import(body)
         before = self._rrsets(first.zone_id)[('www.example.com.', 'A')]
 
-        self._import(body, force=True)
+        self._import(body.replace('192.0.2.2', '192.0.2.3'), force=True)
 
         after = self._rrsets(first.zone_id)[('www.example.com.', 'A')]
-        self.assertEqual(sorted(r.id for r in before.records),
-                         sorted(r.id for r in after.records))
+        kept = [r.id for r in before.records if r.data == '192.0.2.1']
+        self.assertEqual(kept, [r.id for r in after.records
+                                if r.data == '192.0.2.1'])
 
     def test_identical_zonefile_does_not_bump_serial(self):
         body = 'www 300 IN A 192.0.2.1'
         first = self._import(body)
         self.assertFalse(self._zone(first.zone_id).increment_serial)
 
-        self._import(body, force=True)
+        result = self._import(body, force=True)
 
+        self.assertEqual('COMPLETE', result.status, result.message)
         self.assertFalse(self._zone(first.zone_id).increment_serial)
 
     def test_failed_sync_leaves_zone_untouched(self):
-        # SOA  NS  3 recordsets = 5
+        # SOA + NS + 3 recordsets = 5
         first = self._import(
             'www 300 IN A 192.0.2.1\n'
             'a1 300 IN A 192.0.2.2\n'
             'a2 300 IN A 192.0.2.3')
         self.config(quota_zone_recordsets=5)
 
+        # www is deleted, the second create exceeds the quota
         result = self._import(
             'a1 300 IN A 192.0.2.2\n'
             'a2 300 IN A 192.0.2.3\n'
             'n1 300 IN A 192.0.2.4\n'
             'n2 300 IN A 192.0.2.5', force=True)
 
-        self.assertEqual('ERROR', result.status)
+        self.assertEqual(('ERROR', 'Quota exceeded during zone import.'),
+                         (result.status, result.message))
         rrsets = self._rrsets(first.zone_id)
         self.assertIn(('www.example.com.', 'A'), rrsets,
                       'zone was half-synced: www already deleted')
+        self.assertNotIn(('n1.example.com.', 'A'), rrsets)
+
+    def test_force_import_update_exception_rolled_back(self):
+        first = self._import('www 300 IN A 192.0.2.1\nold 300 IN A 192.0.2.9')
+
+        original = self.central_service.storage.update_recordset
+        call_count = 0
+
+        def fail_on_second(context, rrset):
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                raise exceptions.BadRequest('Simulated failure')
+            return original(context, rrset)
+
+        with mock.patch.object(
+                self.central_service.storage,
+                'update_recordset',
+                side_effect=fail_on_second):
+            result = self._import(
+                'www 300 IN A 192.0.2.2\nold 300 IN A 192.0.2.99',
+                force=True)
+
+        self.assertEqual('ERROR', result.status)
+        # Both recordsets must be in their original state due to the
+        # @transaction rollback on _sync_zone.
+        data = self._data(first.zone_id)
+        self.assertEqual(['192.0.2.1'], data[('www.example.com.', 'A')])
+        self.assertEqual(['192.0.2.9'], data[('old.example.com.', 'A')])
 
     def test_zone_with_managed_records(self):
         first = self._import('www 300 IN A 192.0.2.1')
@@ -116,11 +206,16 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
                               'name': 'vm.example.com.', 'type': 'A'},
         )
 
+        # An exported zonefile contains the managed recordset as well
         result = self._import(
             'www 300 IN A 192.0.2.1\nvm 3600 IN A 192.0.2.10', force=True)
-
         self.assertEqual('COMPLETE', result.status, result.message)
-        self.assertIn(('vm.example.com.', 'A'), self._rrsets(first.zone_id))
+        # A zonefile without it does not delete it
+        result = self._import('www 300 IN A 192.0.2.1', force=True)
+        self.assertEqual('COMPLETE', result.status, result.message)
+
+        self.assertEqual(['192.0.2.10'],
+                         self._data(first.zone_id)[('vm.example.com.', 'A')])
 
     def test_zone_being_deleted_keeps_delete_action(self):
         first = self._import('www 300 IN A 192.0.2.1')
@@ -129,9 +224,11 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
 
         result = self._import('www 300 IN A 192.0.2.2', force=True)
 
-        self.assertEqual('ERROR', result.status)
+        self.assertEqual(
+            ('ERROR', 'Cannot force import into a zone that is being '
+                      'deleted.'),
+            (result.status, result.message))
         self.assertEqual('DELETE', self._zone(first.zone_id).action)
-
 
     def test_secondary_zone_is_rejected(self):
         zone = self.create_zone(
@@ -141,12 +238,11 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
 
         result = self._import('www 300 IN A 192.0.2.1', force=True)
 
-        self.assertEqual('ERROR', result.status)
+        self.assertEqual(
+            ('ERROR', 'Cannot force import into a non-PRIMARY zone.'),
+            (result.status, result.message))
         self.assertNotIn(('www.example.com.', 'A'), self._rrsets(zone.id))
-        # The secondary's serial belongs to the primary - no local bump.
-        self.assertFalse(self._zone(zone.id).increment_serial,
-                         'serial bump on SECONDARY; import message: %s'
-                         % result.message)
+        self.assertFalse(self._zone(zone.id).increment_serial)
 
     def test_recordset_owned_by_shared_project(self):
         first = self._import('www 300 IN A 192.0.2.1')
@@ -154,16 +250,21 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
                                  roles=['member', 'reader'])
         self.share_zone(context=self.context, zone_id=first.zone_id,
                         target_project_id=other.project_id)
-        self.central_service.create_recordset(
-            other, first.zone_id, objects.RecordSet(
-                name='shared.example.com.', type='A',
-                records=objects.RecordList(
-                    objects=[objects.Record(data='192.0.2.9')])))
+        for name in ('shared.example.com.', 'gone.example.com.'):
+            self.central_service.create_recordset(
+                other, first.zone_id, objects.RecordSet(
+                    name=name, type='A', records=objects.RecordList(
+                        objects=[objects.Record(data='192.0.2.9')])))
 
+        # The owner imports a file with another address for "shared" and
+        # without "gone"
         result = self._import(
             'www 300 IN A 192.0.2.1\nshared 300 IN A 192.0.2.10', force=True)
 
         self.assertEqual('COMPLETE', result.status, result.message)
+        data = self._data(first.zone_id)
+        self.assertEqual(['192.0.2.10'], data[('shared.example.com.', 'A')])
+        self.assertNotIn(('gone.example.com.', 'A'), data)
 
     def test_shared_project_cannot_force_import_owner_zone(self):
         first = self._import('www 300 IN A 192.0.2.1')
@@ -171,16 +272,15 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
                                  roles=['member', 'reader'])
         self.share_zone(context=self.context, zone_id=first.zone_id,
                         target_project_id=other.project_id)
-        flag_before = self._zone(first.zone_id).increment_serial
 
         result = self._import('evil 300 IN A 192.0.2.66', force=True,
                               context=other)
 
-        self.assertEqual('ERROR', result.status, result.message)
+        self.assertEqual(('ERROR', 'Not allowed to import the zone.'),
+                         (result.status, result.message))
         self.assertNotIn(('evil.example.com.', 'A'),
                          self._rrsets(first.zone_id))
-        self.assertEqual(flag_before,
-                         self._zone(first.zone_id).increment_serial)
+        self.assertFalse(self._zone(first.zone_id).increment_serial)
 
     def test_requested_pool_differs_from_existing_zone_pool(self):
         first = self._import('www 300 IN A 192.0.2.1')
@@ -189,25 +289,32 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
 
         attributes = objects.ZoneAttributeList(objects=[
             objects.ZoneAttribute(key='pool_id', value=pool.id)])
-        result = self._import('www 300 IN A 192.0.2.1', force=True,
+        result = self._import('www 300 IN A 192.0.2.2', force=True,
                               attributes=attributes)
 
-        zone = self._zone(first.zone_id)
-        if result.status == 'COMPLETE':
-            self.assertEqual(pool.id, zone.pool_id)
+        self.assertEqual(
+            ('ERROR', 'Zone already exists in a different pool. '
+                      'Use pool_move_zone to migrate.'),
+            (result.status, result.message))
+        self.assertNotEqual(pool.id, self._zone(first.zone_id).pool_id)
+        self.assertEqual(['192.0.2.1'],
+                         self._data(first.zone_id)[('www.example.com.', 'A')])
 
     @mock.patch('designate.central.service.Service._create_or_sync_zone')
     def test_long_error_message_does_not_leave_import_pending(
             self, mock_sync):
-        for exc in (exceptions.BadRequest, exceptions.Forbidden):
-            mock_sync.side_effect = exc('x' * 500)
+        # A message longer than 160 characters cannot be stored
+        for exc, message in (
+                (exceptions.BadRequest('x' * 500),
+                 'An undefined error occurred. ' + 'x' * 130),
+                (exceptions.Forbidden('x' * 500),
+                 'Not allowed to import the zone.')):
+            mock_sync.side_effect = exc
 
             result = self._import('www 300 IN A 192.0.2.1', force=True)
 
-            self.assertEqual('ERROR', result.status, exc)
-            if exec == exceptions.BadRequest:
-                self.assertEqual('x' * 160, result.message)
-
+            self.assertEqual(('ERROR', message),
+                             (result.status, result.message))
 
     def test_force_requires_force_policy(self):
         self.policy({'create_force_zone_import': '!'})
@@ -225,90 +332,47 @@ class ZoneImportForceTest(designate.tests.functional.TestCase):
 
         self.assertEqual('COMPLETE', result.status, result.message)
 
-    def test_force_import_update_exception_rolled_back(self):
-        rules = dict(OWNER_FORCE_ONLY_RULES)
-        self.policy(dict(rules))
-        first = self._import(
-            self.ops, 'www 300 IN A 192.0.2.1\nold 300 IN A 192.0.2.9')
 
-        original = self.central_service.storage.update_recordset
-        call_count = 0
-
-        def fail_on_second(context, rrset):
-            nonlocal call_count
-            call_count += 1
-            if call_count >= 2:
-                raise exceptions.BadRequest('Simulated failure')
-            return original(context, rrset)
-
-        with mock.patch.object(
-                self.central_service.storage,
-                'update_recordset',
-                side_effect=fail_on_second):
-            result = self._import(
-                self.zonemaster,
-                'www 300 IN A 192.0.2.2\nold 300 IN A 192.0.2.99',
-                force=True)
-
-        self.assertEqual('ERROR', result.status)
-        # Both recordsets must be in their original state due to @transaction
-        # rollback on _create_or_sync_zone.
-        rrsets = self._rrsets(first.zone_id)
-        self.assertEqual(['192.0.2.1'],
-                         [r.data for r in
-                          rrsets[('www.example.com.', 'A')].records])
-        self.assertEqual(['192.0.2.9'],
-                         [r.data for r in
-                          rrsets[('old.example.com.', 'A')].records])
-
-
+# Like in production: operators import (that is, create) zones, zone owners
+# may only force import their zones. The operator rules do not accept
+# role:admin, so context.elevated() does not satisfy them either.
 OPS = 'role:dns_ops'
-NO_A_UPDATES = {'update_recordset': '!', 'update_A_recordset': '!'}
 OWNER_FORCE_ONLY_RULES = {
     'create_zone': OPS,
-    'create_zone_import': (
-        'role:dns_ops or role:dns_zonemaster'),
-    'update_zone_import': (
-            'role:dns_ops or role:dns_zonemaster'),
+    'create_zone_import': OPS,
+    'update_zone_import': OPS,
     'create_force_zone_import': (
         'role:dns_zonemaster and project_id:%(project_id)s'),
 }
+# With the per-type recordset rules (PATCH-017) the A or MX rule applies
+NO_A_UPDATES = {'update_recordset': '!', 'update_A_recordset': '!'}
+NO_MX_DELETES = {'delete_recordset': '!', 'delete_MX_recordset': '!'}
 
 
-class ZoneImportForcePolicyTest(designate.tests.functional.TestCase):
+class ZoneImportForcePolicyTest(ZoneImportForceTestBase):
 
     def setUp(self):
         super().setUp()
         project_id = uuidutils.generate_uuid()
-        self.ops = self.get_context(project_id=project_id, roles=['dns_ops'])
+        # Imports without a context are done by the operator
+        self.context = self.get_context(project_id=project_id,
+                                        roles=['dns_ops'])
         self.zonemaster = self.get_context(project_id=project_id,
                                            roles=['dns_zonemaster'])
-
-    def _import(self, context, body, force=False):
-        zone_import = self.central_service.create_zone_import(
-            context, ZONEFILE.format(body=body), force=force)
-        return self.wait_for_import(zone_import.id, error_is_ok=True)
-
-    def _rrsets(self, zone_id):
-        rrsets = self.storage.find_recordsets(
-            self.admin_context_all_tenants, {'zone_id': zone_id})
-        return {(r.name, r.type): r for r in rrsets}
+        self.policy(dict(OWNER_FORCE_ONLY_RULES))
 
     def test_zonemaster_can_force_import_own_zone(self):
-        self.policy(dict(OWNER_FORCE_ONLY_RULES))
-        first = self._import(self.ops, 'www 300 IN A 192.0.2.1')
+        first = self._import('www 300 IN A 192.0.2.1')
         self.assertEqual('COMPLETE', first.status, first.message)
 
-        result = self._import(
-            self.zonemaster, 'www 300 IN A 192.0.2.2', force=True)
+        result = self._import('www 300 IN A 192.0.2.2', force=True,
+                              context=self.zonemaster)
 
         self.assertEqual('COMPLETE', result.status, result.message)
-        rrset = self._rrsets(first.zone_id)[('www.example.com.', 'A')]
-        self.assertEqual(['192.0.2.2'], [r.data for r in rrset.records])
+        self.assertEqual(['192.0.2.2'],
+                         self._data(first.zone_id)[('www.example.com.', 'A')])
 
     def test_zonemaster_cannot_plain_import(self):
-        self.policy(dict(OWNER_FORCE_ONLY_RULES))
-
         exc = self.assertRaises(
             rpc_dispatcher.ExpectedException,
             self.central_service.create_zone_import,
@@ -316,47 +380,52 @@ class ZoneImportForcePolicyTest(designate.tests.functional.TestCase):
         self.assertEqual(exceptions.Forbidden, exc.exc_info[0])
 
     def test_zonemaster_cannot_create_zone_by_force_import(self):
-        self.policy(dict(OWNER_FORCE_ONLY_RULES))
+        result = self._import('www 300 IN A 192.0.2.1', force=True,
+                              context=self.zonemaster)
 
-        result = self._import(
-            self.zonemaster, 'www 300 IN A 192.0.2.1', force=True)
-
-        self.assertEqual('ERROR', result.status)
-        self.assertEqual('Not allowed to import the zone.', result.message)
+        self.assertEqual(('ERROR', 'Not allowed to import the zone.'),
+                         (result.status, result.message))
         self.assertRaises(
             exceptions.ZoneNotFound, self.storage.find_zone,
             self.admin_context_all_tenants, {'name': 'example.com.'})
 
     def test_unchanged_recordsets_need_no_permission(self):
         body = 'www 300 IN A 192.0.2.1\nmail 300 IN A 192.0.2.25'
-        rules = dict(OWNER_FORCE_ONLY_RULES)
-        self.policy(dict(rules))
-        first = self._import(self.ops, body)
-        rules.update(NO_A_UPDATES)
-        self.policy(dict(rules))
-        result = self._import(
-            self.zonemaster, body + '\nnew 300 IN A 192.0.2.3', force=True)
+        first = self._import(body)
+        self.policy(dict(OWNER_FORCE_ONLY_RULES, **NO_A_UPDATES))
+
+        result = self._import(body + '\nnew 300 IN A 192.0.2.3',
+                              force=True, context=self.zonemaster)
 
         self.assertEqual('COMPLETE', result.status, result.message)
         self.assertIn(('new.example.com.', 'A'), self._rrsets(first.zone_id))
 
     def test_forbidden_change_is_reported_and_rolled_back(self):
-        rules = dict(OWNER_FORCE_ONLY_RULES)
-        self.policy(dict(rules))
         first = self._import(
-            self.ops, 'www 300 IN A 192.0.2.1\nold 300 IN A 192.0.2.9')
+            'www 300 IN A 192.0.2.1\nold 300 IN A 192.0.2.9')
+        self.policy(dict(OWNER_FORCE_ONLY_RULES, **NO_A_UPDATES))
 
-        rules.update(NO_A_UPDATES)
-        self.policy(dict(rules))
-        result = self._import(
-            self.zonemaster, 'www 300 IN A 192.0.2.2', force=True)
+        # Deletes "old" (allowed) and changes "www" (forbidden)
+        result = self._import('www 300 IN A 192.0.2.2', force=True,
+                              context=self.zonemaster)
 
-        self.assertEqual('ERROR', result.status)
         self.assertEqual(
-            'Not allowed to update the A recordset www.example.com.',
-            result.message)
-        rrsets = self._rrsets(first.zone_id)
-        self.assertIn(('old.example.com.', 'A'), rrsets)
-        self.assertEqual(['192.0.2.1'],
-                         [r.data for r in
-                          rrsets[('www.example.com.', 'A')].records])
+            ('ERROR', 'Not allowed to update a recordset of type A.'),
+            (result.status, result.message))
+        data = self._data(first.zone_id)
+        self.assertIn(('old.example.com.', 'A'), data)
+        self.assertEqual(['192.0.2.1'], data[('www.example.com.', 'A')])
+
+    def test_forbidden_delete_is_reported(self):
+        first = self._import(
+            'www 300 IN A 192.0.2.1\n'
+            'example.com. 300 IN MX 10 mail.example.com.')
+        self.policy(dict(OWNER_FORCE_ONLY_RULES, **NO_MX_DELETES))
+
+        result = self._import('www 300 IN A 192.0.2.1', force=True,
+                              context=self.zonemaster)
+
+        self.assertEqual(
+            ('ERROR', 'Not allowed to delete a recordset of type MX.'),
+            (result.status, result.message))
+        self.assertIn(('example.com.', 'MX'), self._rrsets(first.zone_id))

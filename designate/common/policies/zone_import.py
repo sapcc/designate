@@ -29,12 +29,6 @@ deprecated_create_zone_import = policy.DeprecatedRule(
     deprecated_reason=DEPRECATED_REASON,
     deprecated_since=versionutils.deprecated.WALLABY
 )
-deprecated_create_force_zone_import = policy.DeprecatedRule(
-    name="create_force_zone_import",
-    check_str=base.RULE_ADMIN_OR_OWNER,
-    deprecated_reason=DEPRECATED_REASON,
-    deprecated_since=versionutils.deprecated.WALLABY
-)
 deprecated_find_zone_imports = policy.DeprecatedRule(
     name="find_zone_imports",
     check_str=base.RULE_ADMIN_OR_OWNER,
@@ -79,14 +73,15 @@ rules = [
         name="create_force_zone_import",
         check_str=base.ADMIN_OR_PROJECT_MEMBER,
         scope_types=[constants.PROJECT],
-        description="Create Zone Import Forced",
+        description="Create Zone Import with X-Designate-Force-Import, which "
+                    "updates the zone if it already exists. Creating a new "
+                    "zone this way also requires create_zone_import.",
         operations=[
             {
                 'path': '/v2/zones/tasks/imports',
                 'method': 'POST'
             }
-        ],
-        deprecated_rule=deprecated_create_force_zone_import
+        ]
     ),
     policy.DocumentedRuleDefault(
         name="find_zone_imports",

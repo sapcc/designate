@@ -195,6 +195,10 @@ class InvalidOperation(BadRequest):
     error_type = 'invalid_operation'
 
 
+class ZoneImportError(BadRequest):
+    error_type = 'zone_import_error'
+
+
 class UnsupportedAccept(BadRequest):
     error_code = 406
     error_type = 'unsupported_accept'
