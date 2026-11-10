@@ -70,6 +70,20 @@ rules = [
         deprecated_rule=deprecated_create_zone_import
     ),
     policy.DocumentedRuleDefault(
+        name="create_force_zone_import",
+        check_str=base.ADMIN_OR_PROJECT_MEMBER,
+        scope_types=[constants.PROJECT],
+        description="Create Zone Import with X-Designate-Force-Import, which "
+                    "updates the zone if it already exists. Creating a new "
+                    "zone this way also requires create_zone_import.",
+        operations=[
+            {
+                'path': '/v2/zones/tasks/imports',
+                'method': 'POST'
+            }
+        ]
+    ),
+    policy.DocumentedRuleDefault(
         name="find_zone_imports",
         check_str=base.ADMIN_OR_PROJECT_READER,
         scope_types=[constants.PROJECT],

@@ -55,7 +55,7 @@ LOG = logging.getLogger(__name__)
 
 
 class Service(service.RPCService):
-    RPC_API_VERSION = '6.12'
+    RPC_API_VERSION = '6.13'
 
     target = messaging.Target(version=RPC_API_VERSION)
 
@@ -2840,11 +2840,14 @@ class Service(service.RPCService):
     @rpc.expected_exceptions()
     @notification.notify_type('dns.zone_import.create')
     def create_zone_import(self, context, request_body,
-                           zone_attributes=None):
+                           zone_attributes=None, force=False):
         target = {constants.RBAC_PROJECT_ID: context.project_id,
                   'tenant_id': context.project_id}
 
-        policy.check('create_zone_import', context, target)
+        if force:
+            policy.check('create_force_zone_import', context, target)
+        else:
+            policy.check('create_zone_import', context, target)
 
         self._is_valid_project_id(context.project_id)
 
@@ -2868,13 +2871,13 @@ class Service(service.RPCService):
                                                               zone_import)
 
         self.tg.add_thread(self._import_zone, context, created_zone_import,
-                           request_body, zone_attributes)
+                           request_body, zone_attributes, force)
 
         return created_zone_import
 
     @rpc.expected_exceptions()
     def _import_zone(self, context, zone_import, request_body,
-                     zone_attributes=None):
+                     zone_attributes=None, force=False):
         zone = None
         try:
             dnspython_zone = dnszone.from_text(
@@ -2913,10 +2916,13 @@ class Service(service.RPCService):
             )
             zone_import.status = 'ERROR'
 
-        # If the zone import was valid, create the zone
+        # If the zone import was valid, create or update the zone
         if zone_import.status != 'ERROR':
             try:
-                zone = self.create_zone(context, zone)
+                if force:
+                    zone = self._create_or_sync_zone(context, zone)
+                else:
+                    zone = self.create_zone(context, zone)
                 zone_import.status = 'COMPLETE'
                 zone_import.zone_id = zone.id
                 zone_import.message = (
@@ -2928,6 +2934,12 @@ class Service(service.RPCService):
             except exceptions.InvalidTTL as e:
                 zone_import.status = 'ERROR'
                 zone_import.message = str(e)
+            except exceptions.ZoneImportError as e:
+                zone_import.status = 'ERROR'
+                zone_import.message = str(e)
+            except exceptions.Forbidden:
+                zone_import.status = 'ERROR'
+                zone_import.message = 'Not allowed to import the zone.'
             except exceptions.OverQuota:
                 zone_import.status = 'ERROR'
                 zone_import.message = 'Quota exceeded during zone import.'
@@ -2940,7 +2952,157 @@ class Service(service.RPCService):
                 )
                 zone_import.status = 'ERROR'
 
-        self.update_zone_import(context, zone_import)
+        self._update_zone_import_status(context, zone_import)
+
+    @notification.notify_type('dns.zone_import.update')
+    def _update_zone_import_status(self, context, zone_import):
+        # Stores the result of the import. Unlike update_zone_import, this
+        # does not check a policy: users that may import, e.g. only by force,
+        # are not necessarily allowed to change import records.
+        return self.storage.update_zone_import(context, zone_import)
+
+    def _build_sync_zone_delta(self, context, zone, incoming_zone):
+        """Compute the recordset changes that make a zone match the import.
+
+        Returns a dict with the lists to_create, to_update and to_delete. The
+        recordsets in to_update already have the imported records and TTL.
+        SOA and apex NS recordsets, which Designate maintains, and managed
+        recordsets, which belong to e.g. designate-sink, are left alone.
+        """
+        # Including recordsets of projects the zone is shared with, and
+        # managed ones (tenant_id NULL)
+        existing_rrsets = {}
+        for rrset in self.storage.find_recordsets(
+                context, {'zone_id': zone.id}, apply_tenant_criteria=False):
+            # find_recordsets marks all fields as changed, update_recordset
+            # expects only the actual changes
+            rrset.obj_reset_changes(recursive=True)
+            existing_rrsets[(rrset.name, rrset.type)] = rrset
+
+        incoming_rrsets = {
+            (rrset.name, rrset.type): rrset
+            for rrset in incoming_zone.recordsets
+        }
+
+        to_update = []
+        to_delete = []
+        for key, rrset in existing_rrsets.items():
+            if (rrset.type == 'SOA' or rrset.managed or
+                    (rrset.type == 'NS' and rrset.name == zone.name)):
+                continue
+            if key not in incoming_rrsets:
+                to_delete.append(rrset)
+            elif self._apply_incoming_records(rrset, incoming_rrsets[key]):
+                to_update.append(rrset)
+
+        to_create = [
+            rrset for key, rrset in incoming_rrsets.items()
+            if key not in existing_rrsets
+        ]
+
+        return {
+            'to_create': to_create,
+            'to_update': to_update,
+            'to_delete': to_delete,
+        }
+
+    def _apply_sync_zone_delta(self, context, zone, delta):
+        """Apply the changes computed by _build_sync_zone_delta.
+
+        The recordsets are changed by the methods behind the API, so their
+        policies and checks apply to the import as well. The serial is
+        increased once at the end, and not at all if nothing changed.
+        """
+        if not any(delta.values()):
+            return zone
+
+        def change(action, rrset, method, *args):
+            LOG.debug('Force import: %s recordset %s %s in zone %s',
+                      action, rrset.name, rrset.type, zone.id)
+            try:
+                method(context, *args, increment_serial=False)
+            except exceptions.Forbidden:
+                raise exceptions.ZoneImportError(
+                    f'Not allowed to {action} a recordset of type '
+                    f'{rrset.type}.')
+
+        # Deletes first, e.g. a CNAME may replace other recordsets
+        for rrset in delta['to_delete']:
+            change('delete', rrset, self.delete_recordset, zone.id, rrset.id)
+        for rrset in delta['to_update']:
+            change('update', rrset, self.update_recordset, rrset)
+        for rrset in delta['to_create']:
+            change('create', rrset, self.create_recordset, zone.id, rrset)
+
+        return self._update_zone_in_storage(context, zone)
+
+    @staticmethod
+    def _apply_incoming_records(rrset, incoming_rrset):
+        """Give a recordset the records and TTL of the imported one.
+
+        Records that stay are kept as they are, so they keep their IDs.
+        Returns whether the recordset changed.
+        """
+        incoming_data = {record.data for record in incoming_rrset.records}
+        current_data = {record.data for record in rrset.records}
+        if incoming_data == current_data and incoming_rrset.ttl == rrset.ttl:
+            return False
+
+        # Like on create, no TTL (0 in the zonefile) means the zone's TTL
+        if incoming_rrset.ttl != rrset.ttl:
+            rrset.ttl = incoming_rrset.ttl
+        rrset.records = objects.RecordList(objects=[
+            record for record in rrset.records
+            if record.data in incoming_data
+        ] + [
+            record for record in incoming_rrset.records
+            if record.data not in current_data
+        ])
+        return True
+
+    def _create_or_sync_zone(self, context, incoming_zone):
+        """Create the zone, or update the existing zone to match the import."""
+        try:
+            zone = self.storage.find_zone(
+                context, {'name': incoming_zone.name})
+        except exceptions.ZoneNotFound:
+            # create_force_zone_import allows to update zones, creating a
+            # zone by an import needs create_zone_import.
+            target = {constants.RBAC_PROJECT_ID: context.project_id,
+                      'tenant_id': context.project_id}
+            policy.check('create_zone_import', context, target)
+            return self.create_zone(context, incoming_zone)
+
+        # find_zone also finds zones shared with the project, only the owner
+        # may overwrite a zone.
+        if zone.tenant_id != context.project_id:
+            raise exceptions.Forbidden()
+
+        if zone.type != constants.ZONE_PRIMARY:
+            raise exceptions.ZoneImportError(
+                'Cannot force import into a non-PRIMARY zone.')
+
+        if zone.action == 'DELETE':
+            raise exceptions.ZoneImportError(
+                'Cannot force import into a zone that is being deleted.')
+
+        if incoming_zone.obj_attr_is_set('attributes'):
+            pool_id = incoming_zone.attributes.get('pool_id')
+            if pool_id and pool_id != zone.pool_id:
+                raise exceptions.ZoneImportError(
+                    'Zone already exists in a different pool. '
+                    'Use pool_move_zone to migrate.')
+
+        return self._sync_zone(context, zone, incoming_zone)
+
+    @lock.synchronized_zone()
+    @transaction
+    def _sync_zone(self, context, zone, incoming_zone):
+        # The lock keeps out e.g. delete_zone and increment_zone_serial,
+        # which change the same zone fields, the transaction makes the sync
+        # all or nothing.
+        delta = self._build_sync_zone_delta(context, zone, incoming_zone)
+        return self._apply_sync_zone_delta(context, zone, delta)
 
     @notification.notify_type('dns.zone_import.update')
     def update_zone_import(self, context, zone_import):
