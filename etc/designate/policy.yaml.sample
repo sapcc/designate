@@ -927,3 +927,11 @@
 # The zone transfer request API now supports system scope and default
 # roles.
 
+
+# Create a Zone Transfer Request for a sub-zone. Checked instead of
+# create_zone_transfer_request when the zone being transferred is a
+# sub-zone (has a parent zone in Designate). Allows operators to
+# restrict who may transfer sub-zones independently of top-level zones.
+# POST  /v2/zones/{zone_id}/tasks/transfer_requests
+# Intended scope(s): project
+#"create_sub_zone_transfer_request": "role:admin"
