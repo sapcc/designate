@@ -97,6 +97,23 @@ class ZoneImportController(rest.RestController):
                 'Content-type must be text/dns or application/json'
             )
 
+        # Use given 'pool_id' if it was specified in the headers
+        pool_id = request.headers.get('X-Designate-Pool-ID')
+        if pool_id:
+            if zone_attributes is None:
+                zone_attributes = objects.ZoneAttributeList()
+            existing_pool_id = zone_attributes.get('pool_id')
+            # Raise if header and body attributes disagree on the pool
+            if existing_pool_id is not None and existing_pool_id != pool_id:
+                raise exceptions.BadRequest(
+                    'The X-Designate-Pool-ID header and the "pool_id" '
+                    'attribute in the request body must not differ.'
+                )
+            # If only the header set it, fold it into zone_attributes
+            if existing_pool_id is None:
+                zone_attributes.append(
+                    objects.ZoneAttribute(key='pool_id', value=pool_id))
+
         # Create the zone_import
         zone_import = self.central_api.create_zone_import(
             context, body, zone_attributes=zone_attributes)
