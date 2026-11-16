@@ -787,6 +787,16 @@ class TestUpdateStatus(oslotest.base.BaseTestCase):
         self.task = zone.UpdateStatus(self.executor, mock.Mock(), mock.Mock())
         self.task._central_api = mock.Mock()
 
+    def test_constructor_uses_elevated_all_tenants_context(self):
+        context = mock.Mock()
+        elevated_context = mock.Mock()
+        context.elevated.return_value = elevated_context
+
+        task = zone.UpdateStatus(self.executor, context, mock.Mock())
+
+        context.elevated.assert_called_once_with(all_tenants=True)
+        self.assertEqual(elevated_context, task.context)
+
     def test_call_on_delete(self):
         self.task.zone.action = 'DELETE'
         self.task.zone.status = 'SUCCESS'
