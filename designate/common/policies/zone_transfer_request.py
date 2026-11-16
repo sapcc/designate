@@ -70,6 +70,20 @@ rules = [
         deprecated_rule=deprecated_create_zone_transfer_request
     ),
     policy.DocumentedRuleDefault(
+        name="create_sub_zone_transfer_request",
+        check_str=base.ADMIN,
+        scope_types=[constants.PROJECT],
+        description="Create a Zone Transfer Request for a sub-zone. "
+                    "Applied instead of create_zone_transfer_request to "
+                    "allow separate access control for sub-zone transfers.",
+        operations=[
+            {
+                'path': '/v2/zones/{zone_id}/tasks/transfer_requests',
+                'method': 'POST'
+            }
+        ],
+    ),
+    policy.DocumentedRuleDefault(
         name="get_zone_transfer_request",
         check_str=base.RULE_ZONE_TRANSFER,
         scope_types=[constants.PROJECT],
@@ -124,20 +138,6 @@ rules = [
             }
         ],
         deprecated_rule=deprecated_delete_zone_transfer_request
-    ),
-    policy.DocumentedRuleDefault(
-        name="create_sub_zone_transfer_request",
-        check_str=base.ADMIN,
-        scope_types=[constants.PROJECT],
-        description="Create a Zone Transfer Request for a sub-zone. "
-                    "Applied instead of create_zone_transfer_request to "
-                    "allow separate access control for sub-zone transfers.",
-        operations=[
-            {
-                'path': '/v2/zones/{zone_id}/tasks/transfer_requests',
-                'method': 'POST'
-            }
-        ],
     )
 ]
 
