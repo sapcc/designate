@@ -142,6 +142,18 @@ rules = [
         ],
         deprecated_rule=deprecated_create_super_zone
     ),
+    policy.DocumentedRuleDefault(
+        name="create_sub_zone_other_project",
+        check_str=base.ADMIN,
+        scope_types=[constants.PROJECT],
+        description="Create a subzone in another project's zone",
+        operations=[
+            {
+                'path': '/v2/zones',
+                'method': 'POST'
+            }
+        ],
+    ),
     policy.RuleDefault(
         name="get_zones",
         check_str=base.ADMIN_OR_PROJECT_READER,
