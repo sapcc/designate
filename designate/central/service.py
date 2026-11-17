@@ -336,10 +336,21 @@ class Service(service.RPCService):
         """
         Ensures zone.name does not collide - as an exact duplicate, a
         subzone, or a superzone - with a zone owned by a different
-        tenant, regardless of which pool that zone lives in. A single
-        tenant may still own the same or an overlapping zone name
-        across multiple pools (e.g. split-horizon deployments); only
-        cross-tenant collisions are rejected here.
+        tenant, regardless of which pool that zone lives in.
+
+        This closes the CVE-2026-71193 cross-pool bypass: the exact
+        duplicate DB constraint (name, deleted, pool_id) and the
+        _is_subzone / _is_superzone checks were all scoped to a single
+        pool, so scheduling a zone into a different pool skirted every
+        cross-tenant ownership check.
+
+        A single tenant may still own the same or an overlapping zone
+        name across multiple pools (e.g. split-horizon deployments).
+        Cross-tenant collisions are rejected unless the operator has
+        explicitly opted in via the same policies the pool-scoped
+        create_zone flow already honours (create_sub_zone_other_project
+        for subzones, create_super_zone for superzones). There is no
+        opt-in for an exact-name cross-tenant duplicate.
         """
         elevated = context.elevated(all_tenants=True)
         labels = zone.name.split('.')
@@ -375,9 +386,13 @@ class Service(service.RPCService):
         for subzone in self.storage.find_zones(
                 elevated, {'name': search_term}):
             if subzone.tenant_id != zone.tenant_id:
-                raise exceptions.IllegalParentZone(
-                    'Unable to create zone because another tenant owns '
-                    'a subzone of the zone')
+                # Honour the same policy override the pool-scoped
+                # superzone path uses before rejecting.
+                if not policy.check('create_super_zone', context,
+                                    do_raise=False):
+                    raise exceptions.IllegalParentZone(
+                        'Unable to create zone because another tenant owns '
+                        'a subzone of the zone')
 
     def _is_valid_ttl(self, context, ttl):
         if ttl is None:
