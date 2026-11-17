@@ -166,7 +166,9 @@ class CentralBasic(designate.tests.functional.TestCase):
             'abandon',
             'all_tenants',
             'hard_delete',
-            'project_id'
+            'project_id',
+            'project_domain_name',
+            'domain_id'
         ])
 
 

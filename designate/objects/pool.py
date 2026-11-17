@@ -34,6 +34,8 @@ class Pool(base.DictObjectMixin, base.PersistentObjectMixin,
                                              nullable=True),
         'catalog_zone': fields.ObjectFields('PoolCatalogZone',
                                             nullable=True),
+        'shared': fields.BooleanField(default=False, nullable=True),
+        'domain_id': fields.StringFields(maxLength=36, nullable=True),
     }
 
     STRING_KEYS = [

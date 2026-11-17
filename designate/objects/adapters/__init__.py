@@ -34,6 +34,7 @@ from designate.objects.adapters.api_v2.validation_error import ValidationErrorAP
 from designate.objects.adapters.api_v2.zone_import import ZoneImportAPIv2Adapter, ZoneImportListAPIv2Adapter  # noqa
 from designate.objects.adapters.api_v2.zone_export import ZoneExportAPIv2Adapter, ZoneExportListAPIv2Adapter  # noqa
 from designate.objects.adapters.api_v2.shared_zone import SharedZoneAPIv2Adapter, SharedZoneListAPIv2Adapter  # noqa
+from designate.objects.adapters.api_v2.shared_pool import SharedPoolAPIv2Adapter, SharedPoolListAPIv2Adapter  # noqa
 # YAML
 
 from designate.objects.adapters.yaml.pool import PoolYAMLAdapter, PoolListYAMLAdapter  # noqa

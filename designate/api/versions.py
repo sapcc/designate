@@ -66,6 +66,10 @@ def factory(global_config, **local_conf):
         # 2.4 Zone import JSON content type with attributes support
         _add_a_version(versions, 'v2.4', api_url, constants.CURRENT,
                        '2026-04-13T00:00:00Z')
+        
+        # 2.5 Shared Pools
+        _add_a_version(versions, 'v2.5', api_url, constants.CURRENT,
+                       '2026-11-06T00:00:00Z')
 
         return flask.jsonify({'versions': versions})
 
