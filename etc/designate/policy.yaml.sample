@@ -759,6 +759,7 @@
 # POST  /v2/zones/tasks/imports
 # Intended scope(s): project
 #"create_zone_import": "(role:admin) or (role:member and project_id:%(project_id)s)"
+#"create_force_zone_import": "(role:admin) or (role:member and project_id:%(project_id)s)"
 
 # DEPRECATED
 # "create_zone_import":"rule:admin_or_owner" has been deprecated since

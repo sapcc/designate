@@ -16,6 +16,7 @@
 import json
 
 from oslo_log import log as logging
+from oslo_utils import strutils
 import pecan
 
 from designate.api.v2.controllers import rest
@@ -114,9 +115,12 @@ class ZoneImportController(rest.RestController):
                 zone_attributes.append(
                     objects.ZoneAttribute(key='pool_id', value=pool_id))
 
+        force_import = strutils.bool_from_string(
+            request.headers.get('X-Designate-Force-Import')
+        )
         # Create the zone_import
         zone_import = self.central_api.create_zone_import(
-            context, body, zone_attributes=zone_attributes)
+            context, body, zone_attributes=zone_attributes, force=force_import)
         response.status_int = 202
 
         LOG.info("Created %(zone_import)s", {'zone_import': zone_import})
