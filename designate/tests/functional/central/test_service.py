@@ -4077,7 +4077,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
                 self.assertEqual('Duplicate zone.', result.message)
 
     @mock.patch('dns.zone.from_text')
-    @mock.patch('designate.central.service.Service.update_zone_import')
+    @mock.patch('designate.central.service.Service._update_zone_import_status')
     def test_create_zone_import_from_text_exceptions(
             self, mock_update_zone_import, mock_dnszone_from_text):
 
@@ -4112,7 +4112,7 @@ class CentralServiceTest(designate.tests.functional.TestCase):
                          zone_import.message)
 
     @mock.patch('designate.central.service.Service.create_zone')
-    @mock.patch('designate.central.service.Service.update_zone_import')
+    @mock.patch('designate.central.service.Service._update_zone_import_status')
     def test_create_zone_import_create_import_exceptions(
             self, mock_update_zone_import, mock_create_zone):
 
