@@ -13,7 +13,7 @@
 """add stopped service status
 
 Revision ID: f49c4409c8ba
-Revises: f828412479ee
+Revises: b57384b28335
 Create Date: 2023-03-21 12:28:15.381864
 
 """
@@ -23,7 +23,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'f49c4409c8ba'
-down_revision = 'f828412479ee'
+down_revision = 'b57384b28335'
 branch_labels = None
 depends_on = None
 
