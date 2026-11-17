@@ -75,10 +75,10 @@ class CentralAPI:
         6.10 - Add Zone Pool Move method
         6.11 - Add zone attributes to zone import
         6.12 - Add delete service status method
-        6.11.sap - Add delete service status method
-        6.12.sap - Add methods for shared pools
+        6.13 - sap Add delete service status method
+        6.14 - sap Add methods for shared pools
     """
-    RPC_API_VERSION = '6.12'
+    RPC_API_VERSION = '6.14'
 
     # This allows us to mark some methods as not logged.
     # This can be for a few reasons - some methods my not actually call over
@@ -91,7 +91,7 @@ class CentralAPI:
 
         target = messaging.Target(topic=self.topic,
                                   version=self.RPC_API_VERSION)
-        self.client = rpc.get_client(target, version_cap='6.12')
+        self.client = rpc.get_client(target, version_cap='6.14')
 
     @classmethod
     def get_instance(cls):

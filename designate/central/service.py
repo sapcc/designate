@@ -55,7 +55,7 @@ LOG = logging.getLogger(__name__)
 
 
 class Service(service.RPCService):
-    RPC_API_VERSION = '6.12'
+    RPC_API_VERSION = '6.14'
 
     target = messaging.Target(version=RPC_API_VERSION)
 
