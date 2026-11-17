@@ -86,3 +86,68 @@ def verify_project_id(context, project_id):
             }
         )
         return True
+
+
+def verify_domain_id(context, domain_id):
+    """verify that a domain_id exists.
+
+    This attempts to verify that a domain id exists. If it does not,
+    an HTTPBadRequest is emitted.
+
+    """
+    session = ksa_loading.load_session_from_conf_options(
+        CONF, 'keystone', auth=context.get_auth_plugin()
+    )
+    adapter = ksa_loading.load_adapter_from_conf_options(
+        CONF, 'keystone',
+        session=session, min_version=(3, 0), max_version=(3, 'latest')
+    )
+    try:
+        response = adapter.get('/domains/%s' % domain_id, raise_exc=False)
+    except kse.EndpointNotFound:
+        LOG.error(
+            'Keystone identity service version 3.0 was not found. This might '
+            'be because your endpoint points to the v2.0 versioned endpoint '
+            'which is not supported. Please fix this.'
+        )
+        raise exceptions.KeystoneCommunicationFailure(
+            _('KeystoneV3 endpoint not found')
+        )
+    except kse.ClientException:
+        # something is wrong, like there isn't a keystone v3 endpoint,
+        # or nova isn't configured for the interface to talk to it;
+        # we'll take the pass and default to everything being ok.
+        LOG.info('Unable to contact keystone to verify domain_id')
+        return True
+
+    if response.ok:
+        # All is good with this 20x status
+        return True
+    elif response.status_code == 403:
+        # we don't have enough permission to verify this, so default
+        # to "it's ok".
+        LOG.error(
+            'Insufficient permissions for user %(user)s to verify '
+            'existence of domain_id %(did)s',
+            {
+                'user': context.user_id,
+                'did': domain_id
+            }
+        )
+        raise exceptions.Forbidden()
+    elif response.status_code == 404:
+        # we got access, and we know this domain is not there
+        raise exceptions.InvalidDomain(
+            _('%s is not a valid domain ID.') % domain_id
+        )
+    else:
+        LOG.error(
+            'Unexpected response from keystone trying to '
+            'verify domain_id %(did)s - response: %(code)s %(content)s',
+            {
+                'did': domain_id,
+                'code': response.status_code,
+                'content': response.content
+            }
+        )
+        raise exceptions.UnknownFailure()

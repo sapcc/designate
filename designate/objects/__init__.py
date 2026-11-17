@@ -30,6 +30,7 @@ from designate.objects.pool_nameserver import PoolNameserver, PoolNameserverList
 from designate.objects.pool_target import PoolTarget, PoolTargetList  # noqa
 from designate.objects.pool_target_master import PoolTargetMaster, PoolTargetMasterList  # noqa
 from designate.objects.pool_target_option import PoolTargetOption, PoolTargetOptionList  # noqa
+from designate.objects.shared_pool import SharedPool, SharedPoolList  # noqa
 from designate.objects.quota import Quota, QuotaList  # noqa
 from designate.objects.record import Record, RecordList  # noqa
 from designate.objects.recordset import RecordSet, RecordSetList  # noqa
